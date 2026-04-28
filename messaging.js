@@ -30,16 +30,24 @@ export default function MessagingPage({ currentUser, allUsers }) {
 
 export async function getServerSideProps(context) {
     // --- Yetkilendirme Kontrolü ---
-    // Gerçek bir uygulamada, kullanıcının oturum açmış ve rolünün 'admin' veya 'koordinator' olduğu burada kontrol edilmelidir.
-    // const { user } = await supabaseAdmin.auth.api.getUserByCookie(context.req);
-    // if (!user) {
-    //     return { redirect: { destination: '/auth/login', permanent: false } };
-    // }
-    // const { data: currentUserProfile, error: profileError } = await supabaseAdmin.from('profiles').select('id, ad_soyad, rol').eq('id', user.id).single();
-    // if (profileError || !currentUserProfile || (currentUserProfile.rol !== 'admin' && currentUserProfile.rol !== 'koordinator')) {
-    //     return { redirect: { destination: '/auth/login', permanent: false } };
-    // }
-    const currentUser = { id: 'some-user-uuid', ad_soyad: 'Test Admin', rol: 'admin' }; // Geliştirme için geçici kullanıcı
+    const { req } = context;
+    const { user } = await supabaseAdmin.auth.api.getUserByCookie(req);
+
+    if (!user) {
+        return { redirect: { destination: '/auth/login', permanent: false } };
+    }
+
+    const { data: currentUserProfile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('id, ad_soyad, rol')
+        .eq('id', user.id)
+        .single();
+
+    if (profileError || !currentUserProfile || (currentUserProfile.rol !== 'admin' && currentUserProfile.rol !== 'koordinator')) {
+        console.error('Mesajlaşma yetkilendirme hatası:', profileError);
+        return { redirect: { destination: '/', permanent: false } }; // Yetkisizse ana sayfaya yönlendir
+    }
+    const currentUser = currentUserProfile; // Giriş yapan kullanıcının profil bilgileri
     // --- Yetkilendirme Kontrolü Sonu ---
 
     const { data: allUsers, error: usersError } = await supabaseAdmin.from('profiles').select('id, ad_soyad, rol');

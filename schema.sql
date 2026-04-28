@@ -88,3 +88,16 @@ CREATE TABLE IF NOT EXISTS public.sistem_ayarlari (
     analiz_kriterleri TEXT[] -- Değerlendirme kriterleri listesi
 );
 COMMENT ON TABLE public.sistem_ayarlari IS 'Adminin dönem bazında belirlediği görev ve analiz kriterleri.';
+
+
+-- Adım 7: Mesajlar Tablosu
+-- Kullanıcılar (Admin ve Koordinatörler) arasındaki mesajlaşmayı tutar.
+CREATE TABLE IF NOT EXISTS public.mesajlar (
+  id BIGSERIAL PRIMARY KEY,
+  gonderen_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  alici_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL, -- Birebir mesajlaşma için, NULL ise genel mesaj
+  icerik TEXT NOT NULL,
+  gonderilme_tarihi TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  okundu BOOLEAN DEFAULT FALSE -- Mesajın okunup okunmadığını takip etmek için
+);
+COMMENT ON TABLE public.mesajlar IS 'Admin ve koordinatörler arasındaki mesajlaşma kayıtları.';
