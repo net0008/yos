@@ -48,6 +48,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ message: 'Geçerli rapor kaydı bilgisi zorunludur.' });
     }
 
+    // PDF yolu olmayan kayıtları (örn: RAPOR_GONDERILMEMIS) analiz etmeye çalışma.
+    if (!rapor.pdf_storage_path) {
+        return res.status(200).json({ success: true, message: 'Analiz için PDF dosyası bulunmadığından işlem atlandı.' });
+    }
+
     const rapor_id = rapor.id;
 
     try {
@@ -96,19 +101,43 @@ export default async function handler(req, res) {
         const result = await model.generateContent(prompt);
         const response = await result.response;
         let responseText = response.text();
+        let analysisResult;
 
-        responseText = responseText.replace('```json', '').replace('```', '').trim();
-        const analysisResult = JSON.parse(responseText);
+        try {
+            // AI'dan gelen yanıtı temizle ve JSON'a çevir
+            responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            analysisResult = JSON.parse(responseText);
+        } catch (jsonError) {
+            console.error(`Rapor ID ${rapor_id} için AI'dan gelen JSON parse edilemedi. Yanıt:`, responseText);
+            throw new Error('Yapay zeka yanıtı geçerli bir formatta değil.');
+        }
 
-        let finalStatus = 'koordinator_onayinda';
-        if (analysisResult.genel_durum === 'UYGUN DEĞİL') {
-            const imzaEksik = analysisResult.kontrol_listesi.find(item => item.kriter.includes('İmza') && item.durum === 'BAŞARISIZ');
-            const formatHatali = analysisResult.kontrol_listesi.find(item => item.kriter.includes('format') && item.durum === 'BAŞARISIZ');
-            if (imzaEksik) finalStatus = 'IMZA_MUHUR_EKSİK';
-            else if (formatHatali) finalStatus = 'FORMAT_HATALI';
-            else finalStatus = 'reddedildi'; // Genel bir 'uygun değil' durumu
-        } else if (analysisResult.genel_durum === 'UYGUN') {
-            finalStatus = 'onaylandi'; // Otomatik onay veya koordinatör onayı için 'koordinator_onayinda'
+        // --- Akıllı Durum Belirleme ---
+        let finalStatus = 'koordinator_onayinda'; // Varsayılan durum
+
+        const statusMap = {
+            'İmza ve/veya mühür eksik': 'IMZA_MUHUR_EKSİK',
+            'Rapor formatı bozulmuş/hatalı format': 'FORMAT_HATALI',
+            'Eski format kullanılmış': 'ESKI_FORMAT',
+            'genel ifadeler kullanılmış': 'GENEL_IFADE',
+            'Bir bölüm boş bırakıldıysa': 'BOS_BOLUM_ACIKLAMA_YOK',
+            'üst kısmındaki bilgiler eksik/hatalı': 'UST_BILGI_EKSİK_HATALI',
+            'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK'
+        };
+
+        if (analysisResult.genel_durum === 'UYGUN') {
+            finalStatus = 'onaylandi'; // Her şey yolundaysa otomatik onayla (veya koordinatör onayı için 'koordinator_onayinda' bırakılabilir)
+        } else if (analysisResult.genel_durum === 'UYGUN DEĞİL') {
+            finalStatus = 'reddedildi'; // Genel bir 'uygun değil' durumu için varsayılan
+            const failedItem = analysisResult.kontrol_listesi?.find(item => item.durum === 'BAŞARISIZ');
+            if (failedItem) {
+                for (const key in statusMap) {
+                    if (failedItem.kriter.includes(key)) {
+                        finalStatus = statusMap[key];
+                        break; // İlk bulunan kritik hataya göre durumu ata ve döngüden çık
+                    }
+                }
+            }
         }
 
         const { error: updateError } = await supabase
