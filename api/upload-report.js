@@ -1,7 +1,7 @@
 // pages/api/upload-report.js
 import { createClient } from '@supabase/supabase-js';
 import { IncomingForm } from 'formidable';
-import { readFileSync } from 'fs';
+import { readFileSync, unlink } from 'fs';
 import { PDFDocument } from 'pdf-lib'; // PDF okunabilirliğini kontrol etmek için
 import path from 'path';
 
@@ -29,6 +29,8 @@ export default async function handler(req, res) {
     maxFileSize: 10 * 1024 * 1024, // 10MB maksimum dosya boyutu
   });
 
+  let tempFilePath = null;
+
   try {
     const { fields, files } = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
@@ -41,6 +43,8 @@ export default async function handler(req, res) {
     const donem = Array.isArray(fields.donem) ? fields.donem[0] : fields.donem;
     const ay = Array.isArray(fields.ay) ? fields.ay[0] : fields.ay;
     const reportFile = Array.isArray(files.report) ? files.report[0] : files.report;
+
+    tempFilePath = reportFile?.filepath;
 
     if (!sorumluId || !donem || !ay || !reportFile) {
       return res.status(400).json({ message: 'Tüm gerekli alanlar ve dosya sağlanmalıdır.' });
@@ -59,8 +63,6 @@ export default async function handler(req, res) {
       // Eğer buraya kadar geldiyse, PDF okunabilir demektir.
     } catch (pdfError) {
       console.error('PDF okunabilirlik hatası:', pdfError);
-      // Geçici dosyayı sil
-      await unlink(reportFile.filepath);
       return res.status(400).json({ message: 'Yüklenen dosya bozuk veya geçerli bir PDF değil. Lütfen dosyayı kontrol edip yeniden yükleyin.' });
     }
 
@@ -72,9 +74,6 @@ export default async function handler(req, res) {
         contentType: 'application/pdf',
         upsert: false, // Mevcut dosyayı üzerine yazma
       });
-
-    // Geçici dosyayı sil
-    await unlink(reportFile.filepath);
 
     if (uploadError) {
       console.error('Supabase Storage yükleme hatası:', uploadError);
@@ -105,12 +104,10 @@ export default async function handler(req, res) {
     console.error('API hatası:', error);
     return res.status(500).json({ message: 'Beklenmedik bir hata oluştu.' });
   } finally {
-    // Formidable'ın oluşturduğu geçici dosyaları temizlemek için ek mantık gerekebilir
-    // Örneğin, 'fs/promises' modülünden 'unlink' fonksiyonunu kullanmak
-    const { unlink } = await import('fs/promises');
-    // Formidable'ın geçici dosyaları otomatik olarak silmesi için 'onFileEnd' veya benzeri bir hook kullanmak daha iyi olabilir.
-    // Şimdilik, her durumda temizlik için bir deneme yapalım.
-    // Ancak, bu kısım Formidable'ın kendi temizleme mekanizmasıyla çakışabilir veya gereksiz olabilir.
-    // Genellikle 'form.parse' tamamlandığında dosyalar silinir.
+    if (tempFilePath) {
+      unlink(tempFilePath, (err) => {
+        if (err) console.error("Geçici dosya silinirken hata oluştu:", err);
+      });
+    }
   }
 }
