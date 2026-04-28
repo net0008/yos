@@ -56,10 +56,11 @@ export default async function handler(req, res) {
       return res.status(400).json({ message: 'Sadece PDF dosyaları yüklenebilir.' });
     }
 
+    const fileBuffer = readFileSync(reportFile.filepath);
+
     // PDF okunabilirlik kontrolü
     try {
-      const pdfBytes = readFileSync(reportFile.filepath);
-      await PDFDocument.load(pdfBytes); // PDF'i yüklemeye çalış
+      await PDFDocument.load(fileBuffer); // PDF'i yüklemeye çalış
       // Eğer buraya kadar geldiyse, PDF okunabilir demektir.
     } catch (pdfError) {
       console.error('PDF okunabilirlik hatası:', pdfError);
@@ -68,9 +69,9 @@ export default async function handler(req, res) {
 
     // Supabase Storage'a yükleme
     const storagePath = `raporlar/${sorumluId}/${donem}-${ay}-${Date.now()}.pdf`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabase.storage // prettier-ignore
       .from('raporlar') // Supabase Storage'da 'raporlar' adında bir bucket oluşturmanız gerekmektedir.
-      .upload(storagePath, readFileSync(reportFile.filepath), {
+      .upload(storagePath, fileBuffer, {
         contentType: 'application/pdf',
         upsert: false, // Mevcut dosyayı üzerine yazma
       });
