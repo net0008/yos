@@ -1,0 +1,21 @@
+yos/
+├── components/
+│   ├── CoordinatorDashboard.js   # Koordinatörün, sorumlu olduğu raporları listelediği ana panel.
+│   ├── DistrictAssignment.js     # Admin'in, ilçeleri koordinatörlere atadığı arayüz.
+│   ├── ReportReview.js           # Koordinatörün, tek bir raporu ve AI analizini detaylı incelediği ekran.
+│   ├── ReportUploadForm.js       # Okul Sorumlusunun, kimliğini doğrulayıp rapor yüklediği form.
+│   └── SystemSettings.js         # Admin'in, AI kriterlerini ve görev tanımlarını yönettiği arayüz.
+│
+├── pages/
+│   └── api/
+│       ├── analyze-report.js         # Rapor yüklendiğinde AI analizini başlatan API.
+│       ├── assign-district.js        # Admin'in ilçe atama işlemini veritabanına kaydeden API.
+│       ├── update-settings.js        # Admin'in girdiği sistem ayarlarını (görevler, kriterler) kaydeden API.
+│       ├── upload-report.js          # Okul Sorumlusunun PDF raporunu ve bilgilerini alan, kaydeden API.
+│       ├── upload-sorumlu-excel.js   # Admin'in Excel'den toplu sorumlu listesi yüklemesini sağlayan API.
+│       └── verify-sorumlu.js         # Okul Sorumlusunun kimliğini doğrulayan API.
+│
+├── sql/
+│   └── schema.sql                  # Projenin tüm veritabanı tablolarını, tiplerini ve ilişkilerini içeren ana kurulum dosyası.
+│
+└── .env.local                      # Supabase ve Gemini API anahtarları gibi gizli bilgilerin saklandığı dosya.
