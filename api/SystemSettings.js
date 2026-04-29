@@ -1,14 +1,7 @@
 // components/SystemSettings.js
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { createClient } from '@supabase/supabase-js';
-
-// Client-side Supabase istemcisini oluştur.
-// Bu, her bileşende oluşturmak yerine merkezi bir yerden (örn: bir context) sağlanabilir.
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+import { supabase } from '../lib/supabaseClient'; // Paylaşılan istemciyi içe aktar
 
 /**
  * Admin'in sistem ayarlarını (görevler, kriterler) yönettiği arayüz.

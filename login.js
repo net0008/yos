@@ -1,14 +1,8 @@
 // pages/auth/login.js
 import React, { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../lib/supabaseClient'; // Paylaşılan istemciyi içe aktar
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
-
-// Supabase istemcisini başlatın (Client tarafında kullanılacak)
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');

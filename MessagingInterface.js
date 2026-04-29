@@ -1,13 +1,7 @@
 // components/MessagingInterface.js
 import React, { useState, useEffect, useRef } from 'react';
 import { PaperAirplaneIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/solid';
-import { createClient } from '@supabase/supabase-js';
-
-// Client-side Supabase istemcisini oluştur.
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+import { supabase } from '../lib/supabaseClient'; // Paylaşılan istemciyi içe aktar
 
 /**
  * Kullanıcılar (Admin/Koordinatör) arası mesajlaşma arayüzü.

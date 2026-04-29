@@ -1,13 +1,7 @@
 // components/DistrictAssignment.js
 import React, { useState } from 'react';
 import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
-import { createClient } from '@supabase/supabase-js';
-
-// Client-side Supabase istemcisini oluştur.
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+import { supabase } from '../lib/supabaseClient'; // Paylaşılan istemciyi içe aktar
 
 /**
  * Admin'in koordinatörlere ilçe bazında okul sorumlusu ataması yapacağı arayüz.
