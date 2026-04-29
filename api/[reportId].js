@@ -1,7 +1,6 @@
 // pages/coordinator/[reportId].js
 import Layout from '../../components/Layout';
 import ReportReview from '../../components/ReportReview';
-import { createClient } from '@supabase/supabase-js'; // Client-side Supabase client
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
