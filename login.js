@@ -24,24 +24,28 @@ export default function LoginPage() {
         if (error) {
             setMessage(`Giriş hatası: ${error.message}`);
         } else {
-            setMessage('Başarıyla giriş yapıldı! Yönlendiriliyorsunuz...');
-            // Kullanıcının rolüne göre yönlendirme yap
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
+            // signInWithPassword zaten user bilgisini döndürür.
+            // Eğer hata yoksa, `data.user` objesi dolu olacaktır.
+            const user = data.user; // signInWithPassword'dan dönen user objesini kullan
+            if (user) { // user null değilse devam et
+                setMessage('Başarıyla giriş yapıldı! Yönlendiriliyorsunuz...');
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('rol')
                     .eq('id', user.id)
                     .single();
 
-                if (profileError || !profile) {
+                if (profileError) {
                     console.error('Profil bilgisi çekilirken hata:', profileError);
                     setMessage('Profil bilgisi alınamadı. Lütfen tekrar deneyin.');
                     await supabase.auth.signOut(); // Hata durumunda çıkış yap
+                } else if (!profile) { // Profil bulunamadıysa
+                    setMessage('Kullanıcı profili bulunamadı. Lütfen yöneticinizle iletişime geçin.');
+                    await supabase.auth.signOut();
                 } else if (profile.rol === 'admin') {
-                    router.push('/admin/dashboard');
+                    router.replace('/admin/dashboard'); // Giriş sonrası geri tuşuyla login sayfasına dönmeyi engelle
                 } else if (profile.rol === 'koordinator') {
-                    router.push('/coordinator/dashboard');
+                    router.replace('/coordinator/dashboard'); // Giriş sonrası geri tuşuyla login sayfasına dönmeyi engelle
                 } else {
                     setMessage('Bilinmeyen kullanıcı rolü. Lütfen yöneticinizle iletişime geçin.');
                     await supabase.auth.signOut();
