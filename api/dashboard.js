@@ -26,13 +26,16 @@ export default function CoordinatorPanel({ reports }) {
 
 export async function getServerSideProps(context) {
     // --- Koordinatör Yetkilendirme Kontrolü (Örnek) ---
-    // Gerçek bir uygulamada, kullanıcının oturum açmış ve koordinatör rolünde olduğu burada kontrol edilmelidir.
-    // const { user } = await supabaseAdmin.auth.api.getUserByCookie(context.req);
-    // if (!user || user.user_metadata.rol !== 'koordinator') {
-    //     return { redirect: { destination: '/auth/login', permanent: false } };
-    // }
-    // const coordinatorId = user.id; // Giriş yapan koordinatörün ID'si
-    const coordinatorId = 'some-hardcoded-coordinator-uuid'; // Geliştirme için geçici ID
+    const { user } = await supabaseAdmin.auth.api.getUserByCookie(context.req);
+
+    // Kullanıcı oturum açmamışsa veya rolü koordinator değilse giriş sayfasına yönlendir
+    const { data: profile, error: profileError } = await supabaseAdmin.from('profiles').select('rol').eq('id', user?.id).single();
+
+    if (profileError || !user || profile?.rol !== 'koordinator') {
+        return { redirect: { destination: '/auth/login', permanent: false } };
+    }
+
+    const coordinatorId = user.id; // Giriş yapan koordinatörün ID'si
     // --- Yetkilendirme Kontrolü Sonu ---
 
     // Koordinatöre atanan okul sorumlularının ID'lerini al

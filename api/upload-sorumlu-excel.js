@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     // --- Rol Kontrolü Sonu ---
 
     const form = new IncomingForm({
-        uploadDir: './tmp',
+        uploadDir: '/tmp',
         keepExtensions: true,
         maxFileSize: 5 * 1024 * 1024, // 5MB
     });

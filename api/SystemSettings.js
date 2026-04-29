@@ -7,9 +7,8 @@ import { PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
  * @param {object} props - Bileşen propları.
  * @param {string[]} props.donemler - Sistemdeki tüm dönemlerin listesi (örn: ["2025-2026 1. Dönem"]).
  * @param {function} props.onSave - Kaydet butonuna basıldığında çağrılacak fonksiyon.
- * @param {object} props.supabase - Supabase client nesnesi.
  */
-const SystemSettings = ({ donemler, onSave, supabase }) => {
+const SystemSettings = ({ donemler, onSave }) => {
     const [selectedDonem, setSelectedDonem] = useState(donemler[0] || '');
     const [gorevTanimlari, setGorevTanimlari] = useState('');
     const [analizKriterleri, setAnalizKriterleri] = useState(['']);
@@ -23,25 +22,33 @@ const SystemSettings = ({ donemler, onSave, supabase }) => {
         const fetchSettings = async () => {
             setIsLoading(true);
             setMessage('');
-            const { data, error } = await supabase
-                .from('sistem_ayarlari')
-                .select('gorev_tanimlari, analiz_kriterleri')
-                .eq('donem', selectedDonem)
-                .single();
+            // TODO: Bu API isteğine Authorization header'ı eklenmelidir.
+            // `MessagingInterface.js` için yapılan "Ek Not" bölümündeki açıklamaya bakınız.
+            const response = await fetch(`/api/get-settings?donem=${selectedDonem}`, {
+                headers: {
+                    // 'Authorization': `Bearer YOUR_AUTH_TOKEN` // Gerçek token buraya gelmeli
+                }
+            });
+            const result = await response.json();
 
-            if (data) {
-                setGorevTanimlari(data.gorev_tanimlari || '');
-                setAnalizKriterleri(data.analiz_kriterleri || ['']);
+            if (response.ok && result.success) {
+                if (result.settings) {
+                    setGorevTanimlari(result.settings.gorev_tanimlari || '');
+                    setAnalizKriterleri(result.settings.analiz_kriterleri || ['']);
+                } else {
+                    // Eğer o dönem için ayar yoksa formu temizle
+                    setGorevTanimlari('');
+                    setAnalizKriterleri(['']);
+                }
             } else {
-                // Eğer o dönem için ayar yoksa formu temizle
-                setGorevTanimlari('');
-                setAnalizKriterleri(['']);
+                console.error('Ayarlar çekilirken hata:', result.message);
+                setMessage(`Hata: Ayarlar çekilemedi. (${result.message})`);
             }
             setIsLoading(false);
         };
 
         fetchSettings();
-    }, [selectedDonem, supabase]);
+    }, [selectedDonem]);
 
     const handleAddKriter = () => {
         setAnalizKriterleri([...analizKriterleri, '']);

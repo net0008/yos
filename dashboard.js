@@ -33,7 +33,6 @@ export default function AdminDashboard({ districts, coordinators, initialAssignm
                 <SystemSettings
                     donemler={donemler}
                     onSave={handleSaveSettings}
-                    supabase={supabaseAdmin} // Client tarafında kullanılmayacak, sadece prop geçişi için
                 />
             </div>
         </Layout>
