@@ -51,12 +51,6 @@ export async function getServerSideProps(context) {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
 
-    // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
     const { data: currentUserProfile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('id, ad_soyad, rol')
