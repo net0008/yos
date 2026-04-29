@@ -1,8 +1,9 @@
 // components/ReportReview.js
-import React from 'react';
+import React, { useState } from 'react';
 // Bu bileşen, ikonları göstermek için @heroicons/react kütüphanesini kullanır.
 // Projenize eklemek için: npm install @heroicons/react
 import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/solid';
+import { useRouter } from 'next/router';
 
 /**
  * Koordinatörün rapor inceleme arayüzünü oluşturan React bileşeni.
@@ -10,8 +11,13 @@ import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircl
  * @param {object} props.report - 'raporlar' tablosundan gelen, AI analiz sonucunu da içeren rapor nesnesi.
  * @param {string} props.pdfUrl - Supabase Storage'dan alınan, PDF'i güvenli bir şekilde görüntülemek için oluşturulmuş imzalı URL.
  */
-const ReportReview = ({ report, pdfUrl }) => {
+const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
     // `ai_analiz_sonucu` alanını daha kolay erişim için bir değişkene ata
+    const [correctionNote, setCorrectionNote] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [message, setMessage] = useState('');
+    const router = useRouter();
+
     const analysis = report?.ai_analiz_sonucu;
 
     if (!report) {
@@ -104,16 +110,48 @@ const ReportReview = ({ report, pdfUrl }) => {
                                     className="w-full p-2 border rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                     rows="3"
                                     placeholder="Raporla ilgili yorumunuzu veya düzeltme talebinizi buraya yazın..."
+                                    value={correctionNote}
+                                    onChange={(e) => setCorrectionNote(e.target.value)}
+                                    disabled={isSubmitting}
                                 ></textarea>
                                 <div className="flex flex-col sm:flex-row gap-3">
-                                    <button className="w-full px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                    <button
+                                        onClick={async () => {
+                                            setIsSubmitting(true);
+                                            setMessage('');
+                                            const result = await onUpdateStatus(report.id, 'duzeltme_istendi', correctionNote);
+                                            if (result.success) {
+                                                setMessage('Düzeltme talebi başarıyla gönderildi.');
+                                                router.push('/coordinator/dashboard'); // Dashboard'a geri dön
+                                            } else {
+                                                setMessage(`Hata: ${result.message}`);
+                                            }
+                                            setIsSubmitting(false);
+                                        }}
+                                        disabled={isSubmitting}
+                                        className="w-full px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
                                         Düzeltme İste
                                     </button>
-                                    <button className="w-full px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                    <button
+                                        onClick={async () => {
+                                            setIsSubmitting(true);
+                                            setMessage('');
+                                            const result = await onUpdateStatus(report.id, 'onaylandi');
+                                            if (result.success) {
+                                                setMessage('Rapor başarıyla onaylandı.');
+                                                router.push('/coordinator/dashboard'); // Dashboard'a geri dön
+                                            } else {
+                                                setMessage(`Hata: ${result.message}`);
+                                            }
+                                            setIsSubmitting(false);
+                                        }}
+                                        disabled={isSubmitting}
+                                        className="w-full px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                                         Manuel Olarak Onayla
                                     </button>
                                 </div>
                             </div>
+                            {message && <p className={`mt-4 text-sm ${message.startsWith('Hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
                         </div>
                     </div>
                 )}
