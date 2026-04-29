@@ -6,12 +6,6 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'; // Su
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
-// Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
-const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export default function ReportDetailPage({ report, pdfUrl }) {
     const handleUpdateReportStatus = async (reportId, status, correctionNote = null) => {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -54,6 +48,12 @@ export default function ReportDetailPage({ report, pdfUrl }) {
 export async function getServerSideProps(context) {
     const { req, res } = context;
     const { reportId } = context.params;
+
+    // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
+    const supabaseAdmin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
     // --- Koordinatör Yetkilendirme Kontrolü ---
     const supabase = createServerClient(
