@@ -47,12 +47,15 @@ export default async function handler(req, res) {
             `)
             .order('gonderilme_tarihi', { ascending: true });
 
-        // Genel mesajları veya bana gönderilen mesajları çek
-        query = query.or(`alici_id.is.null,alici_id.eq.${senderProfile.id},gonderen_id.eq.${senderProfile.id}`);
-
-        // Eğer belirli bir alıcı ID'si verilmişse, o kişiyle olan sohbeti filtrele
         if (alici_id) {
-            query = query.or(`(gonderen_id.eq.${senderProfile.id},alici_id.eq.${alici_id}),(gonderen_id.eq.${alici_id},alici_id.eq.${senderProfile.id})`);
+            // Belirli bir kişiyle olan özel mesajları çek
+            const myId = senderProfile.id;
+            query = query.or(
+                `and(gonderen_id.eq.${myId},alici_id.eq.${alici_id}),and(gonderen_id.eq.${alici_id},alici_id.eq.${myId})`
+            );
+        } else {
+            // Genel sohbeti çek (alıcısı olmayan mesajlar)
+            query = query.is('alici_id', null);
         }
 
         const { data: messages, error } = await query;

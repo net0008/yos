@@ -73,28 +73,37 @@ export async function getServerSideProps(context) {
         .eq('rol', 'koordinator');
 
     // Mevcut atamalar
+    // Her ilçe için hangi koordinatörün atandığını bulmak için.
     const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
         .from('koordinator_sorumluluklari')
-        .select('sorumlu_id, koordinator_id');
+        .select('koordinator_id, okul_sorumlulari(ilce_adi)');
 
     // Dönemler (şimdilik sabit, gerçekte veritabanından çekilmeli)
     const donemler = ["2025-2026 1. Dönem", "2025-2026 2. Dönem"];
 
     if (districtsError || coordinatorsError || assignmentsError) {
         console.error('Veri çekme hatası:', districtsError || coordinatorsError || assignmentsError);
-        return { props: { error: 'Veriler yüklenirken bir hata oluştu.' } };
+        // Hata durumunda bile sayfayı boş verilerle render etmeye çalışabiliriz.
+        return { props: { districts: [], coordinators: [], initialAssignments: {}, donemler: [] } };
     }
 
+    // Gelen veriyi { 'İlçe Adı': 'koordinator_id' } formatına dönüştür.
     const initialAssignments = {};
-    // Her sorumlu için tek bir atama olduğu varsayımıyla, ilçe bazında koordinatör atamasını bulmak karmaşık olabilir.
-    // DistrictAssignment bileşeni ilçe bazında atama beklediği için, bu kısım daha sonra optimize edilebilir.
-    // Şimdilik, her ilçe için ilk bulunan atamayı varsayalım veya boş bırakalım.
+    if (assignmentsData) {
+        for (const assignment of assignmentsData) {
+            // Bir ilçedeki tüm sorumlular aynı koordinatöre atanmış olmalı.
+            // Bu yüzden bir ilçeye ait bir atama bulduğumuzda bunu map'e ekleyebiliriz.
+            if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
+                initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
+            }
+        }
+    }
 
     return {
         props: {
             districts: districtsData.map(d => ({ ilce_adi: d.ilce_adi, sorumlu_count: d.count })),
             coordinators: coordinatorsData,
-            initialAssignments: {}, // Bu kısım daha karmaşık bir mantık gerektirebilir.
+            initialAssignments,
             donemler: donemler,
         },
     };

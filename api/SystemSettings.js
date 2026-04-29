@@ -1,6 +1,14 @@
 // components/SystemSettings.js
 import React, { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { createClient } from '@supabase/supabase-js';
+
+// Client-side Supabase istemcisini oluştur.
+// Bu, her bileşende oluşturmak yerine merkezi bir yerden (örn: bir context) sağlanabilir.
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 /**
  * Admin'in sistem ayarlarını (görevler, kriterler) yönettiği arayüz.
@@ -22,12 +30,20 @@ const SystemSettings = ({ donemler, onSave }) => {
         const fetchSettings = async () => {
             setIsLoading(true);
             setMessage('');
-            // TODO: Bu API isteğine Authorization header'ı eklenmelidir.
-            // `MessagingInterface.js` için yapılan "Ek Not" bölümündeki açıklamaya bakınız.
+
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError || !session) {
+                setMessage('Hata: Oturum bilgisi alınamadı. Lütfen tekrar giriş yapın.');
+                setIsLoading(false);
+                return;
+            }
+            const token = session.access_token;
+
             const response = await fetch(`/api/get-settings?donem=${selectedDonem}`, {
                 headers: {
-                    // 'Authorization': `Bearer YOUR_AUTH_TOKEN` // Gerçek token buraya gelmeli
-                }
+                    'Authorization': `Bearer ${token}`
+                },
             });
             const result = await response.json();
 
@@ -68,11 +84,22 @@ const SystemSettings = ({ donemler, onSave }) => {
     const handleSave = async () => {
         setIsLoading(true);
         setMessage('');
-        const { error } = await onSave({
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+            setMessage('Hata: Oturum bilgisi alınamadı. Kaydetme işlemi başarısız.');
+            setIsLoading(false);
+            return;
+        }
+        const token = session.access_token;
+
+        const settingsData = {
             donem: selectedDonem,
             gorev_tanimlari: gorevTanimlari,
             analiz_kriterleri: analizKriterleri.filter(k => k.trim() !== ''), // Boş kriterleri gönderme
-        });
+        };
+
+        const { error } = await onSave(settingsData, token);
 
         if (error) {
             setMessage(`Hata: ${error.message}`);

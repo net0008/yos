@@ -13,8 +13,22 @@ export default async function handler(req, res) {
     }
 
     // --- Admin Rol Kontrolü ---
-    // Güvenlik için bu isteği yapanın admin olduğu doğrulanmalıdır.
-    // Bu bölüm, assign-district.js dosyasındaki gibi token kontrolü ile güçlendirilmelidir.
+    const token = req.headers.authorization?.split(' ')[1];
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
+        return res.status(401).json({ message: 'Yetkisiz erişim.' });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('rol')
+        .eq('id', user.id)
+        .single();
+
+    if (profileError || profile?.rol !== 'admin') {
+        return res.status(403).json({ message: 'Bu işlemi yapmaya yetkiniz yok.' });
+    }
     // --- Rol Kontrolü Sonu ---
 
     const { donem, gorev_tanimlari, analiz_kriterleri } = req.body;
