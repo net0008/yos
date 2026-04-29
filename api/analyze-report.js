@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       {
         "analiz_ozeti": "1-2 cümlelik genel bir özet.",
         "genel_durum": "Tüm kriterler başarılı ise 'UYGUN', herhangi biri başarısız ise 'UYGUN DEĞİL' yaz.",
-        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'BAŞARILI' veya 'BAŞARISIZ'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla."}],
+        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'BAŞARILI' veya 'BAŞARISIZ'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'BAŞARISIZ' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen 'etkileşimli tahta hurdaya çıktı' gibi dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
@@ -115,28 +115,31 @@ export default async function handler(req, res) {
         // --- Akıllı Durum Belirleme ---
         let finalStatus = 'koordinator_onayinda'; // Varsayılan durum
 
-        const statusMap = {
+        // Bu map, AI'dan gelen hata kodlarını doğrudan rapor durumlarına eşler.
+        // AI'ın döndürdüğü hata kodları, veritabanındaki rapor_status ENUM değerleriyle uyumlu olmalıdır.
+        const aiErrorToReportStatusMap = {
             'İmza ve/veya mühür eksik': 'IMZA_MUHUR_EKSİK',
             'Rapor formatı bozulmuş/hatalı format': 'FORMAT_HATALI',
             'Eski format kullanılmış': 'ESKI_FORMAT',
             'genel ifadeler kullanılmış': 'GENEL_IFADE',
             'Bir bölüm boş bırakıldıysa': 'BOS_BOLUM_ACIKLAMA_YOK',
             'üst kısmındaki bilgiler eksik/hatalı': 'UST_BILGI_EKSİK_HATALI',
-            'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK'
+            'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK',
+            'RAPOR_OKUNMUYOR': 'RAPOR_OKUNMUYOR' // Eğer AI PDF'i okuyamazsa bu kodu döndürebilir
+            // Diğer hata kodları buraya eklenebilir
         };
 
         if (analysisResult.genel_durum === 'UYGUN') {
-            finalStatus = 'onaylandi'; // Her şey yolundaysa otomatik onayla (veya koordinatör onayı için 'koordinator_onayinda' bırakılabilir)
+            finalStatus = 'onaylandi';
         } else if (analysisResult.genel_durum === 'UYGUN DEĞİL') {
-            finalStatus = 'reddedildi'; // Genel bir 'uygun değil' durumu için varsayılan
-            const failedItem = analysisResult.kontrol_listesi?.find(item => item.durum === 'BAŞARISIZ');
-            if (failedItem) {
-                for (const key in statusMap) {
-                    if (failedItem.kriter.includes(key)) {
-                        finalStatus = statusMap[key];
-                        break; // İlk bulunan kritik hataya göre durumu ata ve döngüden çık
-                    }
-                }
+            // Eğer genel durum uygun değilse, kontrol listesindeki başarısız maddeleri kontrol et
+            const failedItems = analysisResult.kontrol_listesi?.filter(item => item.durum === 'BAŞARISIZ' && item.hata_kodu);
+
+            if (failedItems && failedItems.length > 0) {
+                const firstFailedErrorCode = failedItems[0].hata_kodu; // İlk bulunan hata kodunu kullan
+                finalStatus = aiErrorToReportStatusMap[firstFailedErrorCode] || 'reddedildi'; // Eşleşmezse reddedildi
+            } else {
+                finalStatus = 'reddedildi'; // Genel uygun değil ama belirli bir hata kodu yok
             }
         }
 

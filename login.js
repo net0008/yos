@@ -16,7 +16,7 @@ export default function LoginPage() {
         setLoading(true);
         setMessage('');
 
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password,
         });
@@ -24,9 +24,7 @@ export default function LoginPage() {
         if (error) {
             setMessage(`Giriş hatası: ${error.message}`);
         } else {
-            // signInWithPassword zaten user bilgisini döndürür.
-            // Eğer hata yoksa, `data.user` objesi dolu olacaktır.
-            const user = data.user; // signInWithPassword'dan dönen user objesini kullan
+            const user = data.user;
             if (user) { // user null değilse devam et
                 setMessage('Başarıyla giriş yapıldı! Yönlendiriliyorsunuz...');
                 const { data: profile, error: profileError } = await supabase

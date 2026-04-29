@@ -3,6 +3,8 @@ import Layout from '../../components/Layout';
 import CoordinatorDashboard from '../../components/CoordinatorDashboard';
 import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/router';
+import { createServerClient } from '@supabase/ssr';
+import { serialize } from 'cookie';
 
 // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
 const supabaseAdmin = createClient(
@@ -26,12 +28,25 @@ export default function CoordinatorPanel({ reports }) {
 
 export async function getServerSideProps(context) {
     // --- Koordinatör Yetkilendirme Kontrolü (Örnek) ---
-    const { user } = await supabaseAdmin.auth.api.getUserByCookie(context.req);
+    const { req, res } = context;
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                get: (name) => req.cookies[name],
+                set: (name, value, options) => res.setHeader('Set-Cookie', serialize(name, value, options)),
+                remove: (name, options) => res.setHeader('Set-Cookie', serialize(name, '', options)),
+            },
+        }
+    );
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     // Kullanıcı oturum açmamışsa veya rolü koordinator değilse giriş sayfasına yönlendir
-    const { data: profile, error: profileError } = await supabaseAdmin.from('profiles').select('rol').eq('id', user?.id).single();
+    const { data: profile, error: profileError } = await supabaseAdmin.from('profiles').select('rol').eq('id', user?.id).single(); // user?.id çünkü user null olabilir
 
-    if (profileError || !user || profile?.rol !== 'koordinator') {
+    if (userError || !user || profileError || profile?.rol !== 'koordinator') {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
 

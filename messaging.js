@@ -2,6 +2,8 @@
 import Layout from '../components/Layout';
 import MessagingInterface from '../components/MessagingInterface';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { serialize } from 'cookie';
 
 // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
 const supabaseAdmin = createClient(
@@ -30,10 +32,22 @@ export default function MessagingPage({ currentUser, allUsers }) {
 
 export async function getServerSideProps(context) {
     // --- Yetkilendirme Kontrolü ---
-    const { req } = context;
-    const { user } = await supabaseAdmin.auth.api.getUserByCookie(req);
+    const { req, res } = context;
 
-    if (!user) {
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                get: (name) => req.cookies[name],
+                set: (name, value, options) => res.setHeader('Set-Cookie', serialize(name, value, options)),
+                remove: (name, options) => res.setHeader('Set-Cookie', serialize(name, '', options)),
+            },
+        }
+    );
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
 

@@ -3,6 +3,8 @@ import Layout from '../../components/Layout';
 import ReportReview from '../../components/ReportReview';
 import { supabase } from '../../lib/supabaseClient'; // Paylaşılan client-side istemci
 import { createClient as createAdminClient } from '@supabase/supabase-js'; // Sunucu tarafı için
+import { createServerClient } from '@supabase/ssr';
+import { serialize } from 'cookie';
 
 // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
 const supabaseAdmin = createAdminClient(
@@ -50,11 +52,22 @@ export default function ReportDetailPage({ report, pdfUrl }) {
 }
 
 export async function getServerSideProps(context) {
-    const { req } = context;
+    const { req, res } = context;
     const { reportId } = context.params;
 
     // --- Koordinatör Yetkilendirme Kontrolü ---
-    const { user } = await supabaseAdmin.auth.api.getUserByCookie(req);
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                get: (name) => req.cookies[name],
+                set: (name, value, options) => res.setHeader('Set-Cookie', serialize(name, value, options)),
+                remove: (name, options) => res.setHeader('Set-Cookie', serialize(name, '', options)),
+            },
+        }
+    );
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (!user) {
         return { redirect: { destination: '/auth/login', permanent: false } };
