@@ -1,6 +1,13 @@
 // components/MessagingInterface.js
 import React, { useState, useEffect, useRef } from 'react';
 import { PaperAirplaneIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/solid';
+import { createClient } from '@supabase/supabase-js';
+
+// Client-side Supabase istemcisini oluştur.
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 /**
  * Kullanıcılar (Admin/Koordinatör) arası mesajlaşma arayüzü.
@@ -19,11 +26,17 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
         : 'Genel Sohbet';
 
     const fetchMessages = async () => {
-        // Gerçek uygulamada, Authorization header'ı ile token gönderilmelidir.
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+            console.error("Oturum bulunamadı, mesajlar çekilemiyor.");
+            return;
+        }
+        const token = session.access_token;
+
         const response = await fetch(`/api/get-messages?${selectedRecipient ? `alici_id=${selectedRecipient}` : ''}`, {
             headers: {
-                'Authorization': `Bearer YOUR_AUTH_TOKEN` // Buraya gerçek token gelecek
-            }
+                'Authorization': `Bearer ${token}`
+            },
         });
         const data = await response.json();
         if (data.success) {
@@ -35,12 +48,7 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
 
     useEffect(() => {
         fetchMessages();
-        // Supabase Realtime ile mesajları anlık güncelleme eklenebilir.
-        // const channel = supabase.channel('messages');
-        // channel.on('postgres_changes', { event: '*', schema: 'public', table: 'mesajlar' }, payload => {
-        //     fetchMessages();
-        // }).subscribe();
-        // return () => supabase.removeChannel(channel);
+        // TODO: Supabase Realtime ile anlık güncelleme eklenebilir.
     }, [selectedRecipient]);
 
     useEffect(() => {
@@ -51,12 +59,18 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
         e.preventDefault();
         if (newMessage.trim() === '') return;
 
-        // Gerçek uygulamada, Authorization header'ı ile token gönderilmelidir.
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !session) {
+            console.error("Oturum bulunamadı, mesaj gönderilemiyor.");
+            return;
+        }
+        const token = session.access_token;
+
         const response = await fetch('/api/send-message', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer YOUR_AUTH_TOKEN` // Buraya gerçek token gelecek
+                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
                 alici_id: selectedRecipient,
@@ -114,8 +128,8 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
                         >
                             <div
                                 className={`max-w-[70%] p-3 rounded-lg shadow-sm ${msg.gonderen.id === currentUser.id
-                                        ? 'bg-indigo-500 text-white'
-                                        : 'bg-gray-200 text-gray-800'
+                                    ? 'bg-indigo-500 text-white'
+                                    : 'bg-gray-200 text-gray-800'
                                     }`}
                             >
                                 <p className="text-xs font-semibold mb-1">

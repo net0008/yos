@@ -12,10 +12,13 @@ const supabaseAdmin = createClient(
 
 export default function AdminDashboard({ districts, coordinators, initialAssignments, donemler }) {
     // SystemSettings bileşeni için onSave fonksiyonu
-    const handleSaveSettings = async (settings) => {
+    const handleSaveSettings = async (settings, token) => {
         const response = await fetch('/api/update-settings', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(settings),
         });
         return await response.json();

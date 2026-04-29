@@ -1,6 +1,13 @@
 // components/DistrictAssignment.js
 import React, { useState } from 'react';
 import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { createClient } from '@supabase/supabase-js';
+
+// Client-side Supabase istemcisini oluştur.
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 /**
  * Admin'in koordinatörlere ilçe bazında okul sorumlusu ataması yapacağı arayüz.
@@ -34,12 +41,17 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
         setUiState(prev => ({ ...prev, [ilce]: { status: 'loading' } }));
 
         try {
-            // Gerçek uygulamada, bu istek admin yetkilendirme token'ı ile yapılmalıdır.
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) {
+                throw new Error('Oturum bilgisi alınamadı. Lütfen tekrar giriş yapın.');
+            }
+            const token = session.access_token;
+
             const response = await fetch('/api/assign-district', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // 'Authorization': `Bearer ${admin_token}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ ilceAdi: ilce, koordinatorId }),
             });
