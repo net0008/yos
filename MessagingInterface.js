@@ -48,8 +48,43 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
 
     useEffect(() => {
         fetchMessages();
-        // TODO: Supabase Realtime ile anlık güncelleme eklenebilir.
-    }, [selectedRecipient]);
+
+        // Supabase Realtime ile anlık güncellemeleri dinle
+        const channel = supabase.channel('public:mesajlar')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'mesajlar' },
+                (payload) => {
+                    const newMessage = payload.new;
+
+                    // Gelen mesajın bu sohbete ait olup olmadığını kontrol et
+                    const isForCurrentChat =
+                        // Genel sohbet ve gelen mesaj da genel
+                        (selectedRecipient === null && newMessage.alici_id === null) ||
+                        // Birebir sohbet ve gelen mesaj bu iki kişi arasında
+                        (selectedRecipient !== null &&
+                            ((newMessage.gonderen_id === currentUser.id && newMessage.alici_id === selectedRecipient) ||
+                                (newMessage.gonderen_id === selectedRecipient && newMessage.alici_id === currentUser.id))
+                        );
+
+                    if (isForCurrentChat) {
+                        // Realtime'dan gelen mesaj objesini, fetchMessages'dan gelen formatla uyumlu hale getir.
+                        const gonderen = allUsers.find(u => u.id === newMessage.gonderen_id) || currentUser;
+                        const alici = allUsers.find(u => u.id === newMessage.alici_id);
+
+                        const formattedMessage = {
+                            ...newMessage,
+                            gonderen: gonderen,
+                            alici: alici,
+                        };
+                        setMessages(currentMessages => [...currentMessages, formattedMessage]);
+                    }
+                }
+            )
+            .subscribe();
+
+        // Component unmount olduğunda channel'dan ayrıl
+        return () => supabase.removeChannel(channel);
+
+    }, [selectedRecipient, currentUser, allUsers]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,7 +116,8 @@ const MessagingInterface = ({ currentUser, allUsers }) => {
         const data = await response.json();
         if (data.success) {
             setNewMessage('');
-            fetchMessages(); // Mesaj gönderildikten sonra mesajları yeniden çek
+            // Mesaj gönderildikten sonra yeniden fetch etmeye gerek yok,
+            // Realtime subscription yeni mesajı otomatik olarak ekleyecektir.
         } else {
             console.error('Mesaj gönderilirken hata:', data.message);
         }
