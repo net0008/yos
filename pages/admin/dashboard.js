@@ -6,12 +6,6 @@ import { useRouter } from 'next/router';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
-// Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 export default function CoordinatorPanel({ reports }) {
     const router = useRouter();
 
@@ -27,6 +21,12 @@ export default function CoordinatorPanel({ reports }) {
 }
 
 export async function getServerSideProps(context) {
+    // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
+    const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+
     // --- Koordinatör Yetkilendirme Kontrolü (Örnek) ---
     const { req, res } = context;
 
