@@ -12,6 +12,20 @@ const supabase = createClient(
 // Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// Bu map, AI'dan gelen hata kodlarını doğrudan rapor durumlarına eşler.
+// AI'ın döndürdüğü hata kodları, veritabanındaki rapor_status ENUM değerleriyle uyumlu olmalıdır.
+const aiErrorToReportStatusMap = {
+    'İmza ve/veya mühür eksik': 'IMZA_MUHUR_EKSİK',
+    'Rapor formatı bozulmuş/hatalı format': 'FORMAT_HATALI',
+    'Eski format kullanılmış': 'ESKI_FORMAT',
+    'genel ifadeler kullanılmış': 'GENEL_IFADE',
+    'Bir bölüm boş bırakıldıysa': 'BOS_BOLUM_ACIKLAMA_YOK',
+    'üst kısmındaki bilgiler eksik/hatalı': 'UST_BILGI_EKSİK_HATALI',
+    'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK',
+    'RAPOR_OKUNMUYOR': 'RAPOR_OKUNMUYOR' // Eğer AI PDF'i okuyamazsa bu kodu döndürebilir
+    // Diğer hata kodları buraya eklenebilir
+};
+
 /**
  * Veritabanından Admin tarafından tanımlanmış dinamik ayarları çeker.
  */
@@ -114,20 +128,6 @@ export default async function handler(req, res) {
 
         // --- Akıllı Durum Belirleme ---
         let finalStatus = 'koordinator_onayinda'; // Varsayılan durum
-
-        // Bu map, AI'dan gelen hata kodlarını doğrudan rapor durumlarına eşler.
-        // AI'ın döndürdüğü hata kodları, veritabanındaki rapor_status ENUM değerleriyle uyumlu olmalıdır.
-        const aiErrorToReportStatusMap = {
-            'İmza ve/veya mühür eksik': 'IMZA_MUHUR_EKSİK',
-            'Rapor formatı bozulmuş/hatalı format': 'FORMAT_HATALI',
-            'Eski format kullanılmış': 'ESKI_FORMAT',
-            'genel ifadeler kullanılmış': 'GENEL_IFADE',
-            'Bir bölüm boş bırakıldıysa': 'BOS_BOLUM_ACIKLAMA_YOK',
-            'üst kısmındaki bilgiler eksik/hatalı': 'UST_BILGI_EKSİK_HATALI',
-            'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK',
-            'RAPOR_OKUNMUYOR': 'RAPOR_OKUNMUYOR' // Eğer AI PDF'i okuyamazsa bu kodu döndürebilir
-            // Diğer hata kodları buraya eklenebilir
-        };
 
         if (analysisResult.genel_durum === 'UYGUN') {
             finalStatus = 'onaylandi';
