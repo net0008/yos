@@ -50,22 +50,46 @@ async function handler(req, res) {
             range: 1, // İlk satırı (başlıkları) atla
         });
 
-        // Veritabanına eklenecek veriyi hazırla
-        const sorumlularToUpsert = jsonData
-            .map(row => ({
-                ad_soyad: row.ad_soyad?.trim(),
-                atama_bransi: row.atama_bransi?.trim(),
-                ilce_adi: row.ilce_adi?.trim(),
-                kurum_kodu: String(row.kurum_kodu || '').trim(),
-                okul_adi: row.okul_adi?.trim(),
-                gorevlendirme_donemi: row.gorevlendirme_donemi?.trim() || null, // Boşsa NULL yap
-            }))
-            .filter(row => row.ad_soyad && row.kurum_kodu && row.ilce_adi); // Gerekli alanları olanları filtrele
+        // Veriyi doğrula ve veritabanına eklenecek hale getir
+        const sorumlularToUpsert = [];
+        const validationErrors = [];
+        const validDonemValues = ['Tam Gün', 'Sabah', 'Öğle'];
+
+        jsonData.forEach((row, index) => {
+            const gorevlendirmeDonemi = row.gorevlendirme_donemi?.trim() || null;
+            // ENUM değerini kontrol et
+            if (gorevlendirmeDonemi && !validDonemValues.includes(gorevlendirmeDonemi)) {
+                validationErrors.push(`Satır ${index + 2}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
+            }
+
+            const kurumKodu = String(row.kurum_kodu || '').trim();
+            const adSoyad = row.ad_soyad?.trim();
+            const ilceAdi = row.ilce_adi?.trim();
+
+            if (adSoyad && kurumKodu && ilceAdi) {
+                sorumlularToUpsert.push({
+                    ad_soyad: adSoyad,
+                    atama_bransi: row.atama_bransi?.trim(),
+                    ilce_adi: ilceAdi,
+                    kurum_kodu: kurumKodu,
+                    okul_adi: row.okul_adi?.trim(),
+                    gorevlendirme_donemi: gorevlendirmeDonemi,
+                });
+            }
+        });
+
+        if (validationErrors.length > 0) {
+            // Detaylı hata mesajı ile 400 Bad Request döndür
+            return res.status(400).json({
+                message: 'Excel dosyasında geçersiz veriler bulundu. Lütfen hataları düzeltip tekrar deneyin.',
+                errors: validationErrors,
+            });
+        }
 
         if (sorumlularToUpsert.length === 0) {
             return res.status(400).json({
                 message: 'Excel dosyasında geçerli veri bulunamadı. Lütfen dosyanın boş olmadığından ve sütunların şu sırada olduğundan emin olun: ' +
-                    'Sıra no, ADI SOYADI, ATAMA BRANŞI, İLÇESİ, KURUM KODU, OKUL ADI, Görevlendirme Dönemi'
+                    'Sıra no, ADI SOYADI, ATAMA BRANŞI, İLÇESİ, KURUM KODU, OKUL ADI, Görevlendirme Dönemi',
             });
         }
 
@@ -75,7 +99,12 @@ async function handler(req, res) {
             .upsert(sorumlularToUpsert, { onConflict: 'kurum_kodu' });
 
         if (upsertError) {
-            throw new Error(`Veritabanı hatası: ${upsertError.message}`);
+            // Genel veritabanı hataları için daha spesifik bir mesaj
+            if (upsertError.message.includes('violates not-null constraint')) {
+                throw new Error('Veritabanı hatası: Excel dosyasındaki bazı zorunlu alanlar (Ad Soyad, İlçe, Kurum Kodu) boş olabilir. Lütfen kontrol edin.');
+            } else {
+                throw new Error(`Veritabanı hatası: ${upsertError.message}`);
+            }
         }
 
         return res.status(200).json({
@@ -85,7 +114,11 @@ async function handler(req, res) {
 
     } catch (error) {
         console.error('Excel yükleme API hatası:', error);
-        return res.status(500).json({ message: 'Dosya yüklenirken bir sunucu hatası oluştu.', error: error.message });
+        // Hata mesajını doğrudan istemciye gönder
+        return res.status(500).json({
+            message: error.message || 'Dosya yüklenirken bir sunucu hatası oluştu.',
+            error: error.message, // Geliştirme için orijinal hata
+        });
     } finally {
         // Geçici dosyayı sil
         if (tempFilePath) {

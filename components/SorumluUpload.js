@@ -7,11 +7,13 @@ const SorumluUpload = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('idle'); // idle, uploading, success, error
     const [message, setMessage] = useState('');
+    const [errorDetails, setErrorDetails] = useState([]);
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
         setStatus('idle');
         setMessage('');
+        setErrorDetails([]);
     };
 
     const handleUpload = async (e) => {
@@ -19,6 +21,7 @@ const SorumluUpload = () => {
         if (!file) {
             setMessage('Lütfen bir Excel (.xlsx, .xls, .csv) dosyası seçin.');
             setStatus('error');
+            setErrorDetails([]);
             return;
         }
         setStatus('uploading');
@@ -44,14 +47,18 @@ const SorumluUpload = () => {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Yükleme sırasında bir hata oluştu.');
+                const err = new Error(data.message || 'Yükleme sırasında bir hata oluştu.');
+                err.details = data.errors; // API'den gelen 'errors' dizisini hataya ekle
+                throw err;
             }
 
             setStatus('success');
             setMessage(data.message);
+            setErrorDetails([]);
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
+            setErrorDetails(error.details || []); // Hatadan 'details' dizisini al
         }
     };
 
@@ -85,12 +92,21 @@ const SorumluUpload = () => {
             </form>
 
             {message && (
-                <div className={`mt-4 p-3 rounded-md text-sm flex items-center gap-2 ${status === 'error'
-                        ? 'bg-red-50 border border-red-200 text-red-700'
-                        : 'bg-green-50 border border-green-200 text-green-700'
+                <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${status === 'error'
+                    ? 'bg-red-50 border border-red-200 text-red-700'
+                    : 'bg-green-50 border border-green-200 text-green-700'
                     }`}>
-                    {status === 'error' ? <ExclamationCircleIcon className="h-5 w-5" /> : <CheckCircleIcon className="h-5 w-5" />}
-                    {message}
+                    {status === 'error' ? <ExclamationCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" /> : <CheckCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />}
+                    <div>
+                        <p className="font-semibold">{message}</p>
+                        {errorDetails.length > 0 && (
+                            <ul className="list-disc list-inside mt-2 text-xs space-y-1">
+                                {errorDetails.map((detail, index) => (
+                                    <li key={index}>{detail}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
