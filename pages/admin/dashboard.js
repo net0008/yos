@@ -1,4 +1,5 @@
 // pages/admin/dashboard.js
+import React, { useState } from 'react';
 import Layout from '../../components/Layout';
 import DistrictAssignment from '../../components/DistrictAssignment';
 import SystemSettings from '../../components/SystemSettings';
@@ -6,6 +7,7 @@ import CoordinatorManagement from '../../components/CoordinatorManagement';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
+import SorumluUpload from '../../components/SorumluUpload';
 
 // İzmir'in 30 ilçesi — DB boş olsa bile her zaman gösterilir
 const IZMIR_ILCELERI = [
@@ -23,6 +25,7 @@ export default function AdminDashboard({
     initialAssignments,
     donemler,
 }) {
+    const [activeTab, setActiveTab] = useState('sorumlu');
     const handleSaveSettings = async (settings, token) => {
         const response = await fetch('/api/update-settings', {
             method: 'POST',
@@ -35,17 +38,57 @@ export default function AdminDashboard({
         return await response.json();
     };
 
+    const tabs = [
+        { id: 'sorumlu', name: '1. Aşama: Sorumlu Yönetimi' },
+        { id: 'koordinator', name: '2. Aşama: Koordinatör Yönetimi' },
+        { id: 'atama', name: '3. Aşama: Görev Dağılımı' },
+        { id: 'ayarlar', name: '4. Aşama: Sistem Ayarları' },
+    ];
+
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'sorumlu':
+                return <SorumluUpload />;
+            case 'koordinator':
+                return <CoordinatorManagement initialCoordinators={coordinators} />;
+            case 'atama':
+                return (
+                    <DistrictAssignment
+                        districts={districts}
+                        coordinators={coordinators}
+                        initialAssignments={initialAssignments}
+                    />
+                );
+            case 'ayarlar':
+                return <SystemSettings donemler={donemler} onSave={handleSaveSettings} />;
+            default:
+                return null;
+        }
+    };
+
     return (
         <Layout title="Admin Paneli">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Yönetim Paneli</h1>
-            <div className="space-y-8">
-                <CoordinatorManagement initialCoordinators={coordinators} />
-                <DistrictAssignment
-                    districts={districts}
-                    coordinators={coordinators}
-                    initialAssignments={initialAssignments}
-                />
-                <SystemSettings donemler={donemler} onSave={handleSaveSettings} />
+
+            <div className="mb-6 border-b border-gray-200">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`${activeTab === tab.id
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                        >
+                            {tab.name}
+                        </button>
+                    ))}
+                </nav>
+            </div>
+
+            <div className="mt-8">
+                {renderContent()}
             </div>
         </Layout>
     );

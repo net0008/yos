@@ -1,13 +1,25 @@
 -- Projenin tüm veritabanı şeması
 -- Bu betik, proje kurulumunun en başında bir kez çalıştırılmak üzere tasarlanmıştır.
 
+-- Adım 0: Görevlendirme Tipi için ENUM
+-- Okul sorumlusunun görevlendirme tipini tanımlar.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gorevlendirme_tipi') THEN
+        CREATE TYPE public.gorevlendirme_tipi AS ENUM ('Tam Gün', 'Sabah', 'Öğle');
+    END IF;
+END$$;
+
 -- Adım 1: Okul Sorumluları Tablosu
 -- Sisteme giriş yapmadan rapor yükleyecek kişilerin kimlik doğrulama bilgileri.
 CREATE TABLE IF NOT EXISTS public.okul_sorumlulari (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ad_soyad TEXT NOT NULL,
+  atama_bransi TEXT,
   ilce_adi TEXT NOT NULL,
   kurum_kodu TEXT NOT NULL UNIQUE,
+  okul_adi TEXT,
+  gorevlendirme_donemi public.gorevlendirme_tipi,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 COMMENT ON TABLE public.okul_sorumlulari IS 'Admin tarafından Excel ile yüklenen okul sorumlularının listesi.';

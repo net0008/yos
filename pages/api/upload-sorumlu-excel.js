@@ -45,21 +45,28 @@ async function handler(req, res) {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            header: ['ilce_adi', 'ad_soyad', 'kurum_kodu'], // Sütun başlıklarını zorunlu kıl
+            // Excel'deki sütun sırası: Sıra no, ADI SOYADI, ATAMA BRANŞI, İLÇESİ, KURUM KODU, OKUL ADI, Görevlendirme Dönemi
+            header: ['sira_no', 'ad_soyad', 'atama_bransi', 'ilce_adi', 'kurum_kodu', 'okul_adi', 'gorevlendirme_donemi'],
             range: 1, // İlk satırı (başlıkları) atla
         });
 
         // Veritabanına eklenecek veriyi hazırla
         const sorumlularToUpsert = jsonData
             .map(row => ({
-                ilce_adi: row.ilce_adi?.trim(),
                 ad_soyad: row.ad_soyad?.trim(),
-                kurum_kodu: String(row.kurum_kodu).trim(), // Kurum kodunu her zaman string olarak al
+                atama_bransi: row.atama_bransi?.trim(),
+                ilce_adi: row.ilce_adi?.trim(),
+                kurum_kodu: String(row.kurum_kodu || '').trim(),
+                okul_adi: row.okul_adi?.trim(),
+                gorevlendirme_donemi: row.gorevlendirme_donemi?.trim() || null, // Boşsa NULL yap
             }))
-            .filter(row => row.ilce_adi && row.ad_soyad && row.kurum_kodu); // Boş satırları filtrele
+            .filter(row => row.ad_soyad && row.kurum_kodu && row.ilce_adi); // Gerekli alanları olanları filtrele
 
         if (sorumlularToUpsert.length === 0) {
-            return res.status(400).json({ message: 'Excel dosyasında geçerli veri bulunamadı. Lütfen sütun başlıklarının (ilce_adi, ad_soyad, kurum_kodu) doğru olduğundan ve dosyanın boş olmadığından emin olun.' });
+            return res.status(400).json({
+                message: 'Excel dosyasında geçerli veri bulunamadı. Lütfen dosyanın boş olmadığından ve sütunların şu sırada olduğundan emin olun: ' +
+                    'Sıra no, ADI SOYADI, ATAMA BRANŞI, İLÇESİ, KURUM KODU, OKUL ADI, Görevlendirme Dönemi'
+            });
         }
 
         // 'okul_sorumlulari' tablosuna toplu ekleme/güncelleme yap

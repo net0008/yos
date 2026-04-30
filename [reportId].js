@@ -94,7 +94,8 @@ export async function getServerSideProps(context) {
             okul_sorumlulari(
                 id,
                 ilce_adi,
-                ad_soyad
+                ad_soyad,
+                okul_adi
             )
         `)
         .eq('id', reportId)

@@ -27,8 +27,13 @@ const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
     return (
         <div className="flex flex-col lg:flex-row gap-6 p-4 bg-gray-50 min-h-screen font-sans">
             {/* Sol Taraf: PDF Görüntüleyici */}
-            <div className="lg:w-1/2 xl:w-2/3 h-[85vh] flex flex-col">
-                <h2 className="text-xl font-bold mb-2 text-gray-800">Rapor Önizleme</h2>
+            <div className="lg:w-1/2 xl:w-2/3 h-[90vh] flex flex-col">
+                <div className="mb-2">
+                    <h2 className="text-xl font-bold text-gray-800">Rapor Önizleme</h2>
+                    <p className="text-sm text-gray-600">
+                        {report.okul_sorumlulari.ad_soyad} - {report.okul_sorumlulari.okul_adi || report.okul_sorumlulari.ilce_adi}
+                    </p>
+                </div>
                 <div className="flex-grow border rounded-lg bg-white shadow-sm overflow-hidden">
                     {pdfUrl ? (
                         <iframe src={pdfUrl} className="w-full h-full" title="Rapor PDF" />
@@ -41,7 +46,7 @@ const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
             </div>
 
             {/* Sağ Taraf: Analiz ve Eylemler */}
-            <div className="lg:w-1/2 xl:w-1/3 h-[85vh] overflow-y-auto pr-2">
+            <div className="lg:w-1/2 xl:w-1/3 h-[90vh] overflow-y-auto pr-2">
                 <h2 className="text-xl font-bold mb-2 text-gray-800">AI Analiz Sonuçları ve Eylemler</h2>
                 {!analysis ? (
                     <div className="p-4 border rounded-lg bg-white shadow-sm text-center text-gray-600">

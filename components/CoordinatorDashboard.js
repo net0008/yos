@@ -37,6 +37,7 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
         return reports.filter(report => {
             const matchesSearch =
                 report.okul_sorumlulari.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                report.okul_sorumlulari.okul_adi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 report.okul_sorumlulari.ilce_adi.toLowerCase().includes(searchTerm.toLowerCase());
 
             const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
@@ -59,7 +60,7 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Sorumlu adı veya ilçe ara..."
+                            placeholder="Sorumlu adı, okul adı veya ilçe ara..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 border rounded-md focus:ring-2 focus:ring-indigo-500"
@@ -87,6 +88,7 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adı Soyadı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Okul Adı</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçe</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rapor Dönemi</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durum</th>
@@ -99,6 +101,7 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                                     return (
                                         <tr key={report.id}>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.okul_sorumlulari.ad_soyad}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.okul_adi || '—'}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.ilce_adi}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{`${report.donem} - ${report.ay}. Ay`}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">

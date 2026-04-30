@@ -74,7 +74,7 @@ export async function getServerSideProps(context) {
 
     const { data: reportsData, error: reportsError } = await supabaseAdmin
         .from('raporlar')
-        .select('*, okul_sorumlulari(ad_soyad, ilce_adi)')
+        .select('*, okul_sorumlulari(ad_soyad, ilce_adi, okul_adi)')
         .in('sorumlu_id', sorumluIds);
 
     if (reportsError) {
