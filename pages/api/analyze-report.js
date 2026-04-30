@@ -1,13 +1,7 @@
 // pages/api/analyze-report.js
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import pdf from 'pdf-parse';
-
-// Supabase istemcisini başlatın
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);

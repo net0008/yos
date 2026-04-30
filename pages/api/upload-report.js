@@ -1,15 +1,9 @@
 // pages/api/upload-report.js
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 import { IncomingForm } from 'formidable';
 import { readFileSync, unlink } from 'fs';
 import { PDFDocument } from 'pdf-lib'; // PDF okunabilirliğini kontrol etmek için
 import path from 'path';
-
-// Supabase istemcisini başlatın
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // Formidable ile dosya yüklemeyi işlemek için Next.js body parser'ı devre dışı bırakın
 export const config = {
