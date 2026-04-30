@@ -7,6 +7,16 @@ import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
+// İzmir'in 30 ilçesi — DB boş olsa bile her zaman gösterilir
+const IZMIR_ILCELERI = [
+    'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
+    'Beydağ', 'Bornova', 'Buca', 'Çeşme', 'Çiğli',
+    'Dikili', 'Foça', 'Gaziemir', 'Güzelbahçe', 'Karabağlar',
+    'Karaburun', 'Karşıyaka', 'Kemalpaşa', 'Kınık', 'Kiraz',
+    'Konak', 'Menderes', 'Menemen', 'Narlıdere', 'Ödemiş',
+    'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
+];
+
 export default function AdminDashboard({
     districts,
     coordinators,
@@ -29,17 +39,12 @@ export default function AdminDashboard({
         <Layout title="Admin Paneli">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Yönetim Paneli</h1>
             <div className="space-y-8">
-                {/* 1. Koordinatör Yönetimi — önce koordinatörler eklensin */}
                 <CoordinatorManagement initialCoordinators={coordinators} />
-
-                {/* 2. İlçe Atama — koordinatörler eklendikten sonra ata */}
                 <DistrictAssignment
                     districts={districts}
                     coordinators={coordinators}
                     initialAssignments={initialAssignments}
                 />
-
-                {/* 3. Sistem Ayarları */}
                 <SystemSettings donemler={donemler} onSave={handleSaveSettings} />
             </div>
         </Layout>
@@ -79,35 +84,44 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // İlçeler
+        // DB'deki sorumlu sayılarını ilçe bazında al
         const { data: allSorumlular } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi');
 
-        const districtMap = {};
+        // İlçe → sorumlu sayısı map'i
+        const sorumluCountMap = {};
         for (const s of allSorumlular || []) {
-            districtMap[s.ilce_adi] = (districtMap[s.ilce_adi] || 0) + 1;
+            if (s.ilce_adi) {
+                sorumluCountMap[s.ilce_adi] = (sorumluCountMap[s.ilce_adi] || 0) + 1;
+            }
         }
-        const districts = Object.entries(districtMap).map(([ilce_adi, count]) => ({
+
+        // İzmir ilçelerini DB'deki sayılarla birleştir
+        // DB'de olmayan ilçeler de listede görünür, sorumlu_count 0 olur
+        const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
-            sorumlu_count: count,
+            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        // Koordinatörler — email için auth.users ile join
+        // Koordinatörler
         const { data: profilesData } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
             .eq('rol', 'koordinator');
 
-        // Her koordinatörün email'ini auth'dan al
         const coordinators = [];
         for (const p of profilesData || []) {
-            const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(p.id);
-            coordinators.push({
-                id: p.id,
-                ad_soyad: p.ad_soyad,
-                email: authUser?.user?.email || '',
-            });
+            try {
+                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(p.id);
+                coordinators.push({
+                    id: p.id,
+                    ad_soyad: p.ad_soyad,
+                    email: authUser?.user?.email || '',
+                });
+            } catch {
+                coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: '' });
+            }
         }
 
         // Mevcut atamalar
@@ -133,9 +147,13 @@ export async function getServerSideProps(context) {
         };
     } catch (error) {
         console.error('Admin dashboard hatası:', error.message);
+        // Hata olsa bile İzmir ilçelerini göster
         return {
             props: {
-                districts: [],
+                districts: IZMIR_ILCELERI.map((ilce_adi) => ({
+                    ilce_adi,
+                    sorumlu_count: 0,
+                })),
                 coordinators: [],
                 initialAssignments: {},
                 donemler: ['2025-2026 1. Dönem', '2025-2026 2. Dönem'],
