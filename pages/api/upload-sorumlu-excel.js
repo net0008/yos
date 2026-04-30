@@ -54,12 +54,26 @@ async function handler(req, res) {
         const sorumlularToUpsert = [];
         const validationErrors = [];
         const validDonemValues = ['Tam Gün', 'Sabah', 'Öğle'];
+        const kurumKoduMap = {}; // Kurum kodu tekrarını dosya içinde kontrol etmek için
 
         jsonData.forEach((row, index) => {
+            const excelRowNumber = index + 2;
+            const kurumKodu = String(row.kurum_kodu || '').trim();
+            const adSoyad = row.ad_soyad?.trim();
+            const ilceAdi = row.ilce_adi?.trim();
+
+            // 1. Kurum Kodu tekrarını dosya içinde kontrol et
+            if (kurumKodu) {
+                if (kurumKoduMap[kurumKodu]) {
+                    validationErrors.push(`Satır ${excelRowNumber}: Tekrarlanan Kurum Kodu "${kurumKodu}". Bu kod daha önce ${kurumKoduMap[kurumKodu]}. satırda da kullanılmış.`);
+                } else {
+                    kurumKoduMap[kurumKodu] = excelRowNumber;
+                }
+            }
+
+            // 2. Görevlendirme Dönemi değerini kontrol et
             const incomingDonem = row.gorevlendirme_donemi?.trim();
             let finalDonemValue = null;
-
-            // ENUM değerini büyük/küçük harf duyarsız kontrol et
             if (incomingDonem) {
                 const matchedDonem = validDonemValues.find(
                     (validValue) => validValue.toLowerCase() === incomingDonem.toLowerCase()
@@ -68,14 +82,9 @@ async function handler(req, res) {
                 if (matchedDonem) {
                     finalDonemValue = matchedDonem; // Veritabanı için doğru formatı kullan
                 } else {
-                    // Eğer bir değer var ama eşleşmiyorsa, bu bir hatadır.
-                    validationErrors.push(`Satır ${index + 2}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
+                    validationErrors.push(`Satır ${excelRowNumber}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
                 }
             }
-
-            const kurumKodu = String(row.kurum_kodu || '').trim();
-            const adSoyad = row.ad_soyad?.trim();
-            const ilceAdi = row.ilce_adi?.trim();
 
             if (adSoyad && kurumKodu && ilceAdi) {
                 sorumlularToUpsert.push({
