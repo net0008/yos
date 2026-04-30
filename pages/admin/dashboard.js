@@ -28,10 +28,7 @@ export default function AdminDashboard({ districts, coordinators, initialAssignm
                     coordinators={coordinators}
                     initialAssignments={initialAssignments}
                 />
-                <SystemSettings
-                    donemler={donemler}
-                    onSave={handleSaveSettings}
-                />
+                <SystemSettings donemler={donemler} onSave={handleSaveSettings} />
             </div>
         </Layout>
     );
@@ -40,7 +37,7 @@ export default function AdminDashboard({ districts, coordinators, initialAssignm
 export async function getServerSideProps(context) {
     const { req, res } = context;
 
-    // Oturum kontrolü için anon client
+    // Oturum doğrulama
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -55,12 +52,13 @@ export async function getServerSideProps(context) {
         }
     );
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
 
+    // Admin rol kontrolü
     const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .select('rol')
@@ -68,51 +66,73 @@ export async function getServerSideProps(context) {
         .single();
 
     if (profileError || profile?.rol !== 'admin') {
-        console.error('Admin yetkilendirme hatası:', profileError);
         return { redirect: { destination: '/', permanent: false } };
     }
 
-    // İlçeler ve sorumlu sayıları
-    const { data: districtsData, error: districtsError } = await supabaseAdmin
-        .from('okul_sorumlulari')
-        .select('ilce_adi, count(id)')
-        .group('ilce_adi');
+    try {
+        // Tüm okul sorumlularını çek, ilçe bazında JS'de grupla
+        // (.group() Supabase JS'de mevcut değil)
+        const { data: allSorumlular, error: sorumlularError } = await supabaseAdmin
+            .from('okul_sorumlulari')
+            .select('ilce_adi');
 
-    // Koordinatörler
-    const { data: coordinatorsData, error: coordinatorsError } = await supabaseAdmin
-        .from('profiles')
-        .select('id, ad_soyad')
-        .eq('rol', 'koordinator');
+        if (sorumlularError) throw sorumlularError;
 
-    // Mevcut atamalar
-    const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
-        .from('koordinator_sorumluluklari')
-        .select('koordinator_id, okul_sorumlulari(ilce_adi)');
+        // JS tarafında ilçe bazında say
+        const districtMap = {};
+        for (const s of allSorumlular || []) {
+            districtMap[s.ilce_adi] = (districtMap[s.ilce_adi] || 0) + 1;
+        }
+        const districtsData = Object.entries(districtMap).map(
+            ([ilce_adi, count]) => ({ ilce_adi, sorumlu_count: count })
+        );
 
-    const donemler = ['2025-2026 1. Dönem', '2025-2026 2. Dönem'];
+        // Koordinatörler
+        const { data: coordinatorsData, error: coordinatorsError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, ad_soyad')
+            .eq('rol', 'koordinator');
 
-    if (districtsError || coordinatorsError || assignmentsError) {
-        console.error('Veri çekme hatası:', districtsError || coordinatorsError || assignmentsError);
-        return {
-            props: { districts: [], coordinators: [], initialAssignments: {}, donemler: [] },
-        };
-    }
+        if (coordinatorsError) throw coordinatorsError;
 
-    const initialAssignments = {};
-    if (assignmentsData) {
-        for (const assignment of assignmentsData) {
-            if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
-                initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
+        // Mevcut atamalar — hangi ilçe hangi koordinatöre atanmış
+        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select(`
+                koordinator_id,
+                okul_sorumlulari ( ilce_adi )
+            `);
+
+        if (assignmentsError) throw assignmentsError;
+
+        // { 'İlçeAdı': 'koordinator_uuid' } formatına dönüştür
+        const initialAssignments = {};
+        for (const row of assignmentsData || []) {
+            const ilce = row.okul_sorumlulari?.ilce_adi;
+            if (ilce && row.koordinator_id) {
+                initialAssignments[ilce] = row.koordinator_id;
             }
         }
-    }
 
-    return {
-        props: {
-            districts: districtsData.map((d) => ({ ilce_adi: d.ilce_adi, sorumlu_count: d.count })),
-            coordinators: coordinatorsData,
-            initialAssignments,
-            donemler,
-        },
-    };
+        const donemler = ['2025-2026 1. Dönem', '2025-2026 2. Dönem'];
+
+        return {
+            props: {
+                districts: districtsData,
+                coordinators: coordinatorsData || [],
+                initialAssignments,
+                donemler,
+            },
+        };
+    } catch (error) {
+        console.error('Admin dashboard veri hatası:', error.message);
+        return {
+            props: {
+                districts: [],
+                coordinators: [],
+                initialAssignments: {},
+                donemler: ['2025-2026 1. Dönem', '2025-2026 2. Dönem'],
+            },
+        };
+    }
 }
