@@ -1,9 +1,9 @@
 // pages/messaging.js
 import Layout from '../components/Layout';
 import MessagingInterface from '../components/MessagingInterface';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../lib/supabaseAdmin'; // ← EN ÜSTE taşındı
+import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
-import { createServerClient } from '@supabase/ssr'; // Keep this for client-side Supabase in SSR
 
 export default function MessagingPage({ currentUser, allUsers }) {
     if (!currentUser) {
@@ -24,9 +24,7 @@ export default function MessagingPage({ currentUser, allUsers }) {
     );
 }
 
-import { supabaseAdmin } from '../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 export async function getServerSideProps(context) {
-    // --- Yetkilendirme Kontrolü ---
     const { req, res } = context;
 
     const supabase = createServerClient(
@@ -35,11 +33,14 @@ export async function getServerSideProps(context) {
         {
             cookies: {
                 get: (name) => req.cookies[name],
-                set: (name, value, options) => res.setHeader('Set-Cookie', serialize(name, value, options)),
-                remove: (name, options) => res.setHeader('Set-Cookie', serialize(name, '', options)),
+                set: (name, value, options) =>
+                    res.setHeader('Set-Cookie', serialize(name, value, options)),
+                remove: (name, options) =>
+                    res.setHeader('Set-Cookie', serialize(name, '', options)),
             },
         }
     );
+
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
@@ -52,14 +53,18 @@ export async function getServerSideProps(context) {
         .eq('id', user.id)
         .single();
 
-    if (profileError || !currentUserProfile || (currentUserProfile.rol !== 'admin' && currentUserProfile.rol !== 'koordinator')) {
+    if (
+        profileError ||
+        !currentUserProfile ||
+        (currentUserProfile.rol !== 'admin' && currentUserProfile.rol !== 'koordinator')
+    ) {
         console.error('Mesajlaşma yetkilendirme hatası:', profileError);
-        return { redirect: { destination: '/', permanent: false } }; // Yetkisizse ana sayfaya yönlendir
+        return { redirect: { destination: '/', permanent: false } };
     }
-    const currentUser = currentUserProfile; // Giriş yapan kullanıcının profil bilgileri
-    // --- Yetkilendirme Kontrolü Sonu ---
 
-    const { data: allUsers, error: usersError } = await supabaseAdmin.from('profiles').select('id, ad_soyad, rol');
+    const { data: allUsers } = await supabaseAdmin
+        .from('profiles')
+        .select('id, ad_soyad, rol');
 
-    return { props: { currentUser, allUsers: allUsers || [] } };
+    return { props: { currentUser: currentUserProfile, allUsers: allUsers || [] } };
 }
