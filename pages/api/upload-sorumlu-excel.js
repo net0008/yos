@@ -1,14 +1,9 @@
 // pages/api/upload-sorumlu-excel.js
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin';
 import { IncomingForm } from 'formidable';
 import { readFileSync, unlink } from 'fs';
 import * as XLSX from 'xlsx';
-
-// Supabase istemcisini başlatın
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { withAuth } from '../../lib/withAuth';
 
 // Formidable ile dosya yüklemeyi işlemek için Next.js body parser'ı devre dışı bırakın
 export const config = {
@@ -17,29 +12,10 @@ export const config = {
     },
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
     }
-
-    // --- Admin Rol Kontrolü ---
-    const token = req.headers.authorization?.split(' ')[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-        return res.status(401).json({ message: 'Yetkisiz erişim.' });
-    }
-
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('rol')
-        .eq('id', user.id)
-        .single();
-
-    if (profileError || profile?.rol !== 'admin') {
-        return res.status(403).json({ message: 'Bu işlemi yapmaya yetkiniz yok.' });
-    }
-    // --- Rol Kontrolü Sonu ---
 
     const form = new IncomingForm({
         uploadDir: '/tmp',
@@ -112,3 +88,6 @@ export default async function handler(req, res) {
         }
     }
 }
+
+// Handler'ı withAuth middleware'i ile sarmala ve sadece 'admin' rolüne izin ver
+export default withAuth(handler, ['admin']);

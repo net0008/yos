@@ -23,54 +23,55 @@ export default function LoginPage() {
 
         if (error) {
             setMessage(`Giriş hatası: ${error.message}`);
-        } else {
-            const user = data.user;
-            if (user) { // user null değilse devam et
-                setMessage('Başarıyla giriş yapıldı! Yönlendiriliyorsunuz...');
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('rol')
-                    .eq('id', user.id)
-                    .single();
-
-                if (profileError) {
-                    console.error('Profil bilgisi çekilirken hata:', profileError);
-                    setMessage('Profil bilgisi alınamadı. Lütfen tekrar deneyin.');
-                    await supabase.auth.signOut(); // Hata durumunda çıkış yap
-                } else if (!profile) { // Profil bulunamadıysa
-                    setMessage('Kullanıcı profili bulunamadı. Lütfen yöneticinizle iletişime geçin.');
-                    await supabase.auth.signOut();
-                } else if (profile.rol === 'admin') {
-                    router.replace('/admin/dashboard'); // Giriş sonrası geri tuşuyla login sayfasına dönmeyi engelle
-                } else if (profile.rol === 'koordinator') {
-                    router.replace('/coordinator/dashboard'); // Giriş sonrası geri tuşuyla login sayfasına dönmeyi engelle
-                } else {
-                    setMessage('Bilinmeyen kullanıcı rolü. Lütfen yöneticinizle iletişime geçin.');
-                    await supabase.auth.signOut();
-                }
-            }
+            setLoading(false);
+            return;
         }
-        setLoading(false);
+
+        if (data.user) {
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('rol')
+                .eq('id', data.user.id)
+                .single();
+
+            if (profileError || !profile) {
+                console.error('Profil bilgisi çekilirken hata:', profileError);
+                setMessage('Profil bilgisi alınamadı veya kullanıcı rolü tanımsız. Lütfen yöneticinizle iletişime geçin.');
+                await supabase.auth.signOut(); // Hata durumunda çıkış yap
+                setLoading(false);
+            } else if (profile.rol === 'admin') {
+                router.replace('/admin/dashboard');
+            } else if (profile.rol === 'koordinator') {
+                router.replace('/koordinator/dashboard'); // 'coordinator' -> 'koordinator' olarak düzeltildi.
+            } else {
+                setMessage('Bilinmeyen kullanıcı rolü. Bu sayfaya erişim yetkiniz yok.');
+                await supabase.auth.signOut();
+                setLoading(false);
+            }
+        } else {
+            setMessage('Kullanıcı bilgisi alınamadı. Lütfen tekrar deneyin.');
+            setLoading(false);
+        }
     };
 
     return (
         <Layout title="Giriş Yap">
-            <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md mt-10">
-                <h1 className="text-2xl font-bold text-center mb-6">Giriş Yap</h1>
-                <form onSubmit={handleLogin} className="space-y-4">
+            <div className="w-full max-w-sm mx-auto mt-10">
+                <form onSubmit={handleLogin} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                    <h1 className="text-2xl font-bold text-center mb-6">Giriş Yap</h1>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">E-posta</label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full p-2 border rounded-md mt-1" />
+                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">E-posta</label>
+                        <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Parola</label>
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full p-2 border rounded-md mt-1" />
+                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">Parola</label>
+                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline" />
                     </div>
-                    <button type="submit" disabled={loading} className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400">
+                    <button type="submit" disabled={loading} className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400">
                         {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
                     </button>
                 </form>
-                {message && <p className={`mt-4 text-center ${message.includes('hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
+                {message && <p className={`mt-4 text-center text-sm ${message.includes('hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
             </div>
         </Layout>
     );

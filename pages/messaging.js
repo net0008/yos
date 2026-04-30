@@ -2,8 +2,8 @@
 import Layout from '../components/Layout';
 import MessagingInterface from '../components/MessagingInterface';
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
+import { createServerClient } from '@supabase/ssr'; // Keep this for client-side Supabase in SSR
 
 export default function MessagingPage({ currentUser, allUsers }) {
     if (!currentUser) {
@@ -24,6 +24,7 @@ export default function MessagingPage({ currentUser, allUsers }) {
     );
 }
 
+import { supabaseAdmin } from '../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 export async function getServerSideProps(context) {
     // --- Yetkilendirme Kontrolü ---
     const { req, res } = context;
@@ -44,12 +45,6 @@ export async function getServerSideProps(context) {
     if (userError || !user) {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
-
-    // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
 
     const { data: currentUserProfile, error: profileError } = await supabaseAdmin
         .from('profiles')

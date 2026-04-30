@@ -1,36 +1,11 @@
 // pages/api/get-messages.js
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin';
+import { withAuth } from '../../lib/withAuth';
 
-// Supabase istemcisini başlatın
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-export default async function handler(req, res) {
+async function handler(req, res) {
     if (req.method !== 'GET') {
         return res.status(405).json({ message: 'Sadece GET istekleri kabul edilir.' });
     }
-
-    // --- Yetkilendirme Kontrolü ---
-    const token = req.headers.authorization?.split(' ')[1];
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-        return res.status(401).json({ message: 'Yetkisiz erişim. Lütfen giriş yapın.' });
-    }
-
-    // Gönderen kullanıcının profilini al (rolünü kontrol etmek için)
-    const { data: senderProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, rol')
-        .eq('id', user.id)
-        .single();
-
-    if (profileError || !senderProfile || (senderProfile.rol !== 'admin' && senderProfile.rol !== 'koordinator')) {
-        return res.status(403).json({ message: 'Bu işlemi yapmaya yetkiniz yok.' });
-    }
-    // --- Yetkilendirme Kontrolü Sonu ---
 
     const { alici_id } = req.query; // Opsiyonel: belirli bir alıcıya gönderilen mesajları filtrelemek için
 
@@ -49,7 +24,7 @@ export default async function handler(req, res) {
 
         if (alici_id) {
             // Belirli bir kişiyle olan özel mesajları çek
-            const myId = senderProfile.id;
+            const myId = req.user.id; // withAuth middleware'inden gelen kullanıcı ID'si
             query = query.or(
                 `and(gonderen_id.eq.${myId},alici_id.eq.${alici_id}),and(gonderen_id.eq.${alici_id},alici_id.eq.${myId})`
             );
@@ -69,3 +44,6 @@ export default async function handler(req, res) {
         return res.status(500).json({ message: 'Mesajlar çekilirken bir sunucu hatası oluştu.', error: error.message });
     }
 }
+
+// Handler'ı withAuth middleware'i ile sarmala ve izin verilen rolleri belirt
+export default withAuth(handler, ['admin', 'koordinator']);
