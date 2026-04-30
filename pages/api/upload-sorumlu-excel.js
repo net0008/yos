@@ -56,10 +56,21 @@ async function handler(req, res) {
         const validDonemValues = ['Tam Gün', 'Sabah', 'Öğle'];
 
         jsonData.forEach((row, index) => {
-            const gorevlendirmeDonemi = row.gorevlendirme_donemi?.trim() || null;
-            // ENUM değerini kontrol et
-            if (gorevlendirmeDonemi && !validDonemValues.includes(gorevlendirmeDonemi)) {
-                validationErrors.push(`Satır ${index + 2}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
+            const incomingDonem = row.gorevlendirme_donemi?.trim();
+            let finalDonemValue = null;
+
+            // ENUM değerini büyük/küçük harf duyarsız kontrol et
+            if (incomingDonem) {
+                const matchedDonem = validDonemValues.find(
+                    (validValue) => validValue.toLowerCase() === incomingDonem.toLowerCase()
+                );
+
+                if (matchedDonem) {
+                    finalDonemValue = matchedDonem; // Veritabanı için doğru formatı kullan
+                } else {
+                    // Eğer bir değer var ama eşleşmiyorsa, bu bir hatadır.
+                    validationErrors.push(`Satır ${index + 2}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
+                }
             }
 
             const kurumKodu = String(row.kurum_kodu || '').trim();
@@ -68,12 +79,7 @@ async function handler(req, res) {
 
             if (adSoyad && kurumKodu && ilceAdi) {
                 sorumlularToUpsert.push({
-                    ad_soyad: adSoyad,
-                    atama_bransi: row.atama_bransi?.trim(),
-                    ilce_adi: ilceAdi,
-                    kurum_kodu: kurumKodu,
-                    okul_adi: row.okul_adi?.trim(),
-                    gorevlendirme_donemi: gorevlendirmeDonemi,
+                    ad_soyad: adSoyad, atama_bransi: row.atama_bransi?.trim(), ilce_adi: ilceAdi, kurum_kodu: kurumKodu, okul_adi: row.okul_adi?.trim(), gorevlendirme_donemi: finalDonemValue,
                 });
             }
         });
