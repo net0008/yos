@@ -54,7 +54,7 @@ async function handler(req, res) {
         const sorumlularToUpsert = [];
         const validationErrors = [];
         const validDonemValues = ['Tam Gün', 'Sabah', 'Öğle'];
-        const kurumKoduMap = {}; // Kurum kodu tekrarını dosya içinde kontrol etmek için
+        const uniquePairMap = {}; // (kurum_kodu, ad_soyad) tekrarını dosya içinde kontrol etmek için
 
         jsonData.forEach((row, index) => {
             const excelRowNumber = index + 2;
@@ -62,12 +62,14 @@ async function handler(req, res) {
             const adSoyad = row.ad_soyad?.trim();
             const ilceAdi = row.ilce_adi?.trim();
 
-            // 1. Kurum Kodu tekrarını dosya içinde kontrol et
-            if (kurumKodu) {
-                if (kurumKoduMap[kurumKodu]) {
-                    validationErrors.push(`Satır ${excelRowNumber}: Tekrarlanan Kurum Kodu "${kurumKodu}". Bu kod daha önce ${kurumKoduMap[kurumKodu]}. satırda da kullanılmış.`);
+            // 1. (Kurum Kodu, Ad Soyad) tekrarını dosya içinde kontrol et.
+            // Bu, aynı kişinin aynı okula iki kez eklenmesini engeller.
+            if (kurumKodu && adSoyad) {
+                const uniqueKey = `${kurumKodu}|${adSoyad}`;
+                if (uniquePairMap[uniqueKey]) {
+                    validationErrors.push(`Satır ${excelRowNumber}: Tekrarlanan kayıt (Kurum Kodu: "${kurumKodu}", Ad Soyad: "${adSoyad}"). Bu kişi bu okula daha önce ${uniquePairMap[uniqueKey]}. satırda da eklenmiş.`);
                 } else {
-                    kurumKoduMap[kurumKodu] = excelRowNumber;
+                    uniquePairMap[uniqueKey] = excelRowNumber;
                 }
             }
 
@@ -111,7 +113,7 @@ async function handler(req, res) {
         // 'okul_sorumlulari' tablosuna toplu ekleme/güncelleme yap
         const { error: upsertError } = await supabase
             .from('okul_sorumlulari')
-            .upsert(sorumlularToUpsert, { onConflict: 'kurum_kodu' });
+            .upsert(sorumlularToUpsert, { onConflict: 'kurum_kodu,ad_soyad' });
 
         if (upsertError) {
             // Genel veritabanı hataları için daha spesifik bir mesaj

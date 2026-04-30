@@ -17,10 +17,11 @@ CREATE TABLE IF NOT EXISTS public.okul_sorumlulari (
   ad_soyad TEXT NOT NULL,
   atama_bransi TEXT,
   ilce_adi TEXT NOT NULL,
-  kurum_kodu TEXT NOT NULL UNIQUE,
+  kurum_kodu TEXT NOT NULL,
   okul_adi TEXT,
   gorevlendirme_donemi public.gorevlendirme_tipi,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE (kurum_kodu, ad_soyad) -- Bir kişi bir okula sadece bir kez atanabilir.
 );
 COMMENT ON TABLE public.okul_sorumlulari IS 'Admin tarafından Excel ile yüklenen okul sorumlularının listesi.';
 
