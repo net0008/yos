@@ -1,7 +1,7 @@
 // pages/messaging.js
 import Layout from '../components/Layout';
 import MessagingInterface from '../components/MessagingInterface';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
@@ -25,12 +25,6 @@ export default function MessagingPage({ currentUser, allUsers }) {
 }
 
 export async function getServerSideProps(context) {
-    // Supabase istemcisini başlatın (Sadece sunucu tarafında kullanılacak)
-    const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-    );
-
     // --- Yetkilendirme Kontrolü ---
     const { req, res } = context;
 
