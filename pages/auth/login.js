@@ -1,7 +1,6 @@
 // pages/auth/login.js
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 
 export default function LoginPage() {
@@ -9,30 +8,26 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
-    const [messageType, setMessageType] = useState('error'); // 'error' | 'info'
-    const router = useRouter();
-
-    const showError = (msg) => {
-        setMessage(msg);
-        setMessageType('error');
-    };
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
 
-        // 1. Kimlik doğrulama
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        // 1. Giriş yap
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
 
         if (error) {
-            showError(`Giriş hatası: ${error.message}`);
+            setMessage(`Giriş hatası: ${error.message}`);
             setLoading(false);
             return;
         }
 
         if (!data.user) {
-            showError('Kullanıcı bilgisi alınamadı. Lütfen tekrar deneyin.');
+            setMessage('Kullanıcı bilgisi alınamadı. Lütfen tekrar deneyin.');
             setLoading(false);
             return;
         }
@@ -44,47 +39,36 @@ export default function LoginPage() {
             .eq('id', data.user.id)
             .single();
 
-        if (profileError) {
-            console.error('Profil sorgu hatası:', profileError);
+        if (profileError || !profile) {
+            console.error('Profil hatası:', profileError);
             await supabase.auth.signOut();
 
-            if (profileError.code === 'PGRST116') {
-                showError(
-                    'Kullanıcı profiliniz bulunamadı. ' +
-                    'Lütfen yöneticinizle iletişime geçin (profiles tablosuna kayıt eklenmeli).'
-                );
-            } else if (profileError.code === '42501') {
-                showError(
-                    'Profil okuma yetkisi yok. ' +
-                    'Supabase RLS politikasını kontrol edin.'
+            if (profileError?.code === 'PGRST116') {
+                setMessage(
+                    'Profiliniz bulunamadı. ' +
+                    'Supabase Dashboard → profiles tablosuna kaydınızı ekleyin.'
                 );
             } else {
-                showError(`Profil hatası: ${profileError.message}`);
+                setMessage(
+                    `Profil okunamadı: ${profileError?.message || 'Bilinmeyen hata'}. ` +
+                    'RLS politikasını kontrol edin.'
+                );
             }
             setLoading(false);
             return;
         }
 
-        if (!profile) {
-            await supabase.auth.signOut();
-            showError('Profil kaydı bulunamadı. Lütfen yöneticinizle iletişime geçin.');
-            setLoading(false);
-            return;
-        }
-
-        // 3. Role göre yönlendir
+        // 3. Tam sayfa yönlendirme — cookie'nin SSR tarafında görünmesi için
+        //    router.replace() değil window.location.href kullanıyoruz
         if (profile.rol === 'admin') {
-            await router.replace('/admin/dashboard');
+            window.location.href = '/admin/dashboard';
         } else if (profile.rol === 'koordinator') {
-            await router.replace('/koordinator/dashboard');
+            window.location.href = '/koordinator/dashboard';
         } else {
             await supabase.auth.signOut();
-            showError(`Bilinmeyen kullanıcı rolü: "${profile.rol}". Erişim yetkiniz yok.`);
+            setMessage(`Bilinmeyen rol: "${profile.rol}". Erişim yetkiniz yok.`);
             setLoading(false);
         }
-        // Not: Başarılı yönlendirmede setLoading(false) çağırmıyoruz,
-        // sayfa zaten değişecek. Ama yönlendirme başarısız olursa:
-        setLoading(false);
     };
 
     return (
@@ -138,23 +122,9 @@ export default function LoginPage() {
                 </form>
 
                 {message && (
-                    <div
-                        className={`mt-2 p-3 rounded text-sm text-center ${
-                            messageType === 'error'
-                                ? 'bg-red-50 border border-red-200 text-red-700'
-                                : 'bg-green-50 border border-green-200 text-green-700'
-                        }`}
-                    >
+                    <div className="mt-2 p-3 rounded text-sm text-center bg-red-50 border border-red-200 text-red-700">
                         {message}
                     </div>
-                )}
-
-                {/* Geliştirme ortamı debug bilgisi */}
-                {process.env.NODE_ENV === 'development' && (
-                    <p className="mt-4 text-center text-xs text-gray-400">
-                        Supabase URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? '✓' : '✗'} |
-                        Anon Key: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? '✓' : '✗'}
-                    </p>
                 )}
             </div>
         </Layout>
