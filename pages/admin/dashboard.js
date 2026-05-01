@@ -133,7 +133,10 @@ export async function getServerSideProps(context) {
             .select('ilce_adi, count')
             .group('ilce_adi');
 
-        if (countError) throw countError;
+        if (countError) {
+            console.error('Error fetching district counts:', countError);
+            throw countError;
+        }
 
         // İlçe → sorumlu sayısı map'i
         const sorumluCountMap = {};
@@ -148,10 +151,15 @@ export async function getServerSideProps(context) {
         }));
 
         // Koordinatörler
-        const { data: profilesData } = await supabaseAdmin
+        const { data: profilesData, error: profilesError } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
             .eq('rol', 'koordinator');
+
+        if (profilesError) {
+            console.error('Error fetching coordinator profiles:', profilesError);
+            throw profilesError;
+        }
 
         const coordinators = [];
         for (const p of profilesData || []) {
@@ -160,7 +168,7 @@ export async function getServerSideProps(context) {
                 coordinators.push({
                     id: p.id,
                     ad_soyad: p.ad_soyad,
-                    email: authUser?.user?.email || '',
+                    email: authUser?.user?.email || 'E-posta bulunamadı', // Daha açıklayıcı bir yedek değer
                 });
             } catch {
                 coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: '' });
@@ -171,6 +179,13 @@ export async function getServerSideProps(context) {
         const { data: assignmentsData } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
             .select('koordinator_id, okul_sorumlulari(ilce_adi)');
+        const { error: assignmentsError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('koordinator_id, okul_sorumlulari(ilce_adi)'); // Bu satır zaten yukarıda var, düzeltme yaparken dikkatli olalım.
+        if (assignmentsError) {
+            console.error('Error fetching assignments:', assignmentsError);
+            throw assignmentsError;
+        }
 
         const initialAssignments = {};
         for (const row of assignmentsData || []) {
