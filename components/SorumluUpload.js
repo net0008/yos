@@ -26,7 +26,7 @@ const SorumluUpload = () => {
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message);
+            if (!response.ok) throw new Error(data.message || `Sunucudan hata kodu ${response.status} alındı.`);
 
             if (data.sorumlular && data.sorumlular.length > 0) {
                 setSorumlular(data.sorumlular);
@@ -70,15 +70,16 @@ const SorumluUpload = () => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message);
 
-            setMessage(data.message);
+            const successMessage = data.message;
+            setMessage(successMessage);
             setStatus('success');
             setSorumlular([]);
             setView('upload'); // Switch back to upload view
             // Clear success message after a few seconds
             setTimeout(() => {
-                if (status !== 'error') {
-                    setMessage('');
-                }
+                setMessage(currentMessage =>
+                    currentMessage === successMessage ? '' : currentMessage
+                );
             }, 3000);
 
         } catch (error) {
@@ -140,7 +141,7 @@ const SorumluUpload = () => {
         if (view === 'loading') {
             return (
                 <div className="flex justify-center items-center p-10">
-                    <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-500" />
+                    <ArrowPathIcon className="h-6 w-6 animate-spin text-gray-500" />
                     <p className="ml-3 text-gray-600">Sorumlu listesi yükleniyor...</p>
                 </div>
             );
@@ -197,7 +198,7 @@ const SorumluUpload = () => {
         return (
             <>
                 <div className="text-center">
-                    <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <UserGroupIcon className="mx-auto h-10 w-10 text-gray-400" />
                     <h2 className="text-2xl font-bold mt-2">Okul Sorumluları Yönetimi</h2>
                     <p className="text-sm text-gray-500 mt-1 mb-6">
                         Sistemde kayıtlı okul sorumlusu bulunmamaktadır.
@@ -211,7 +212,7 @@ const SorumluUpload = () => {
                         <label className="block text-sm font-medium text-gray-600">Excel Dosyası</label>
                         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                             <div className="space-y-1 text-center">
-                                <ArrowUpTrayIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                <ArrowUpTrayIcon className="mx-auto h-10 w-10 text-gray-400" />
                                 <div className="flex text-sm text-gray-600">
                                     <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                                         <span>Dosya seçin</span>

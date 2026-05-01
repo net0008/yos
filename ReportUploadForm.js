@@ -82,7 +82,7 @@ const ReportUploadForm = () => {
     if (status === 'success') {
         return (
             <div className="max-w-md mx-auto text-center p-8 bg-white rounded-lg shadow-lg mt-10">
-                <CheckCircleIcon className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold text-gray-800">Rapor Başarıyla Yüklendi!</h2>
                 <p className="text-gray-600 mt-2">Raporunuz sisteme başarıyla kaydedilmiştir. Teşekkür ederiz.</p>
             </div>
@@ -115,7 +115,7 @@ const ReportUploadForm = () => {
             ) : (
                 <form onSubmit={handleUpload} className="space-y-4">
                     <div className="p-3 bg-green-50 border border-green-200 rounded-md text-center">
-                        <UserCircleIcon className="h-8 w-8 text-green-600 mx-auto mb-1" />
+                        <UserCircleIcon className="h-6 w-6 text-green-600 mx-auto mb-1" />
                         <p className="font-semibold text-green-800">Merhaba, {verifiedSorumlu.adSoyad}</p>
                         <p className="text-sm text-green-700">Kimliğiniz doğrulandı. Lütfen raporunuzu yükleyin.</p>
                     </div>
@@ -140,7 +140,7 @@ const ReportUploadForm = () => {
                         <label className="block text-sm font-medium text-gray-600">PDF Rapor Dosyası</label>
                         <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                             <div className="space-y-1 text-center">
-                                <ArrowUpTrayIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                <ArrowUpTrayIcon className="mx-auto h-10 w-10 text-gray-400" />
                                 <div className="flex text-sm text-gray-600">
                                     <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                                         <span>Dosya seçin</span>
