@@ -142,8 +142,8 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
             {/* Mesaj */}
             {message.text && (
                 <div className={`mb-4 p-3 rounded-md text-sm ${message.type === 'error'
-                        ? 'bg-red-50 border border-red-200 text-red-700'
-                        : 'bg-green-50 border border-green-200 text-green-700'
+                    ? 'bg-red-50 border border-red-200 text-red-700'
+                    : 'bg-green-50 border border-green-200 text-green-700'
                     }`}>
                     {message.text}
                 </div>
@@ -166,7 +166,7 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {coordinators.length === 0 ? (
+                        {initialCoordinators.length === 0 ? (
                             <tr>
                                 <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">
                                     Henüz koordinatör eklenmemiş.
