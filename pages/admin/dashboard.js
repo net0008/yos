@@ -19,16 +19,15 @@ const IZMIR_ILCELERI = [
 ];
 
 export default function AdminDashboard({
-    districts,
+    districts: initialDistricts,
     coordinators: initialCoordinators,
     initialAssignments,
     donemler,
 }) {
     const [activeTab, setActiveTab] = useState('sorumlu');
 
-    // Koordinatör listesini state'de tut — CoordinatorManagement ve
-    // DistrictAssignment aynı güncel listeyi görsün, sayfa yenilemesi gerekmez.
     const [coordinators, setCoordinators] = useState(initialCoordinators);
+    const [districts, setDistricts] = useState(initialDistricts);
 
     const handleCoordinatorAdded = (newKoordinator) => {
         setCoordinators(prev => [...prev, newKoordinator]);
@@ -36,6 +35,21 @@ export default function AdminDashboard({
 
     const handleCoordinatorDeleted = (deletedId) => {
         setCoordinators(prev => prev.filter(k => k.id !== deletedId));
+    };
+
+    const handleSorumluListChange = (sorumluList) => {
+        const sorumluCountMap = (sorumluList || []).reduce((acc, s) => {
+            if (s.ilce_adi) {
+                acc[s.ilce_adi] = (acc[s.ilce_adi] || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        const updatedDistricts = IZMIR_ILCELERI.map((ilce_adi) => ({
+            ilce_adi,
+            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
+        }));
+        setDistricts(updatedDistricts);
     };
 
     const handleSaveSettings = async (settings, token) => {
@@ -51,16 +65,16 @@ export default function AdminDashboard({
     };
 
     const tabs = [
-        { id: 'sorumlu',     name: '1. Aşama: Sorumlu Yönetimi' },
+        { id: 'sorumlu', name: '1. Aşama: Sorumlu Yönetimi' },
         { id: 'koordinator', name: '2. Aşama: Koordinatör Yönetimi' },
-        { id: 'atama',       name: '3. Aşama: Görev Dağılımı' },
-        { id: 'ayarlar',     name: '4. Aşama: Sistem Ayarları' },
+        { id: 'atama', name: '3. Aşama: Görev Dağılımı' },
+        { id: 'ayarlar', name: '4. Aşama: Sistem Ayarları' },
     ];
 
     const renderContent = () => {
         switch (activeTab) {
             case 'sorumlu':
-                return <SorumluUpload />;
+                return <SorumluUpload onSorumluListChange={handleSorumluListChange} />;
             case 'koordinator':
                 return (
                     <CoordinatorManagement
@@ -94,11 +108,10 @@ export default function AdminDashboard({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`${
-                                activeTab === tab.id
+                            className={`${activeTab === tab.id
                                     ? 'border-indigo-500 text-indigo-600'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             {tab.name}
                         </button>
