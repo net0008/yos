@@ -1,10 +1,12 @@
 // components/CoordinatorManagement.js
 import React, { useState } from 'react';
 import { PlusIcon, TrashIcon, UserCircleIcon } from '@heroicons/react/24/solid';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 
 const CoordinatorManagement = ({ initialCoordinators = [] }) => {
-    const [coordinators, setCoordinators] = useState(initialCoordinators);
+    const router = useRouter();
+    // The list of coordinators is now directly driven by the `initialCoordinators` prop.
     const [form, setForm] = useState({ adSoyad: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
@@ -45,9 +47,9 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
             return;
         }
 
-        setCoordinators(prev => [...prev, data.koordinator]);
-        setForm({ adSoyad: '', email: '', password: '' });
         showMsg(data.message, 'success');
+        setForm({ adSoyad: '', email: '', password: '' });
+        router.replace(router.asPath); // Refetch server-side props to update the list everywhere
     };
 
     const handleDelete = async (koordinatorId, adSoyad) => {
@@ -65,8 +67,8 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
 
         const data = await res.json();
         if (res.ok) {
-            setCoordinators(prev => prev.filter(k => k.id !== koordinatorId));
             showMsg(data.message, 'success');
+            router.replace(router.asPath); // Refetch server-side props to update the list everywhere
         } else {
             showMsg(data.message, 'error');
         }
@@ -139,11 +141,10 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
 
             {/* Mesaj */}
             {message.text && (
-                <div className={`mb-4 p-3 rounded-md text-sm ${
-                    message.type === 'error'
+                <div className={`mb-4 p-3 rounded-md text-sm ${message.type === 'error'
                         ? 'bg-red-50 border border-red-200 text-red-700'
                         : 'bg-green-50 border border-green-200 text-green-700'
-                }`}>
+                    }`}>
                     {message.text}
                 </div>
             )}
@@ -172,11 +173,11 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                                 </td>
                             </tr>
                         ) : (
-                            coordinators.map(k => (
+                            initialCoordinators.map(k => (
                                 <tr key={k.id}>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
-                                            <UserCircleIcon className="h-8 w-8 text-indigo-400 flex-shrink-0" />
+                                            <UserCircleIcon className="h-6 w-6 text-gray-500 flex-shrink-0" />
                                             <span className="text-sm font-medium text-gray-900">
                                                 {k.ad_soyad}
                                             </span>
