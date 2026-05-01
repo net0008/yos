@@ -173,7 +173,7 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                                 </td>
                             </tr>
                         ) : (
-                            initialCoordinators.map(k => (
+                            (initialCoordinators || []).map(k => (
                                 <tr key={k.id}>
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
