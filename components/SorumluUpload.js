@@ -164,27 +164,29 @@ const SorumluUpload = () => {
                             Listeyi Sil
                         </button>
                     </div>
-                    <div className="overflow-x-auto max-h-[60vh] border rounded-lg">
-                        <table className="min-w-full divide-y divide-gray-200">
+                    <div className="overflow-x-auto max-h-[60vh] border border-gray-200 rounded-lg overflow-hidden">
+                        <table className="min-w-full border-collapse">
                             <thead className="bg-gray-50 sticky top-0">
                                 <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adı Soyadı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçesi</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Okul Adı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kurum Kodu</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branşı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dönem</th>
+                                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Sıra No</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Adı Soyadı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">İlçesi</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Okul Adı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Kurum Kodu</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Branşı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Dönem</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {sorumlular.map((sorumlu) => (
-                                    <tr key={sorumlu.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sorumlu.ad_soyad}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.ilce_adi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.okul_adi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.kurum_kodu}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.atama_bransi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.gorevlendirme_donemi}</td>
+                            <tbody className="bg-white">
+                                {sorumlular.map((sorumlu, index) => (
+                                    <tr key={sorumlu.id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-center border border-gray-200">{index + 1}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-200">{sorumlu.ad_soyad}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.ilce_adi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.okul_adi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.kurum_kodu}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.atama_bransi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.gorevlendirme_donemi}</td>
                                     </tr>
                                 ))}
                             </tbody>
