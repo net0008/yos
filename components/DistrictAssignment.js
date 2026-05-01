@@ -106,7 +106,7 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                                 {ilce_adi}
                                             </span>
                                             <span className="ml-2 text-xs text-gray-400">
-                                                ({sorumlu_count} sorumlu)
+                                                ({sorumlu_count} okul sorumlusu)
                                             </span>
                                             {isAssigned && (
                                                 <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">
