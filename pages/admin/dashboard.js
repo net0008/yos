@@ -122,6 +122,7 @@ export async function getServerSideProps(context) {
         .eq('id', user.id)
         .single();
 
+    // Admin rol kontrolü
     if (profile?.rol !== 'admin') {
         return { redirect: { destination: '/', permanent: false } };
     }
@@ -162,26 +163,31 @@ export async function getServerSideProps(context) {
         }
 
         const coordinators = [];
-        for (const p of profilesData || []) {
-            try {
-                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(p.id);
-                coordinators.push({
-                    id: p.id,
-                    ad_soyad: p.ad_soyad,
-                    email: authUser?.user?.email || 'E-posta bulunamadı', // Daha açıklayıcı bir yedek değer
-                });
-            } catch {
-                coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: '' });
+        if (profilesData && profilesData.length > 0) {
+            for (const p of profilesData) {
+                try {
+                    const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(p.id);
+                    if (authUserError) {
+                        console.warn(`Could not fetch auth user for profile ID: ${p.id}. Error: ${authUserError.message}. Profile will be listed without email.`);
+                    }
+                    coordinators.push({
+                        id: p.id,
+                        ad_soyad: p.ad_soyad,
+                        email: authUser?.user?.email || 'E-posta alınamadı', // Daha açıklayıcı bir yedek değer
+                    });
+                } catch (e) {
+                    console.warn(`Unexpected error fetching auth user for profile ID: ${p.id}. Error: ${e.message}. Profile will be listed without email.`);
+                    coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: 'E-posta alınamadı' });
+                }
             }
+        } else {
+            console.warn('No coordinator profiles found in the database.');
         }
 
         // Mevcut atamalar
         const { data: assignmentsData } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
             .select('koordinator_id, okul_sorumlulari(ilce_adi)');
-        const { error: assignmentsError } = await supabaseAdmin
-            .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari(ilce_adi)'); // Bu satır zaten yukarıda var, düzeltme yaparken dikkatli olalım.
         if (assignmentsError) {
             console.error('Error fetching assignments:', assignmentsError);
             throw assignmentsError;
