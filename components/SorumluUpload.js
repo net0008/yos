@@ -1,13 +1,48 @@
 // components/SorumluUpload.js
-import React, { useState } from 'react';
-import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import React, { useState, useEffect } from 'react';
+import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
 const SorumluUpload = () => {
     const [file, setFile] = useState(null);
-    const [status, setStatus] = useState('idle'); // idle, uploading, success, error
+    const [status, setStatus] = useState('idle'); // idle, loading, uploading, success, error
     const [message, setMessage] = useState('');
     const [errorDetails, setErrorDetails] = useState([]);
+    const [sorumlular, setSorumlular] = useState([]);
+    const [view, setView] = useState('loading'); // loading, upload, list
+
+    // Fetch existing sorumlular on mount
+    useEffect(() => {
+        fetchSorumlular();
+    }, []);
+
+    const fetchSorumlular = async () => {
+        setStatus('loading');
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) throw new Error('Oturum bulunamadı.');
+
+            const response = await fetch('/api/get-sorumlular', {
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message);
+
+            if (data.sorumlular && data.sorumlular.length > 0) {
+                setSorumlular(data.sorumlular);
+                setView('list');
+            } else {
+                setSorumlular([]);
+                setView('upload');
+            }
+        } catch (error) {
+            setStatus('error');
+            setMessage(error.message);
+            setView('upload'); // If fetch fails, show upload form
+        } finally {
+            setStatus('idle');
+        }
+    };
 
     const handleFileChange = (e) => {
         setFile(e.target.files[0]);
@@ -15,6 +50,43 @@ const SorumluUpload = () => {
         setMessage('');
         setErrorDetails([]);
     };
+
+    const handleDeleteAll = async () => {
+        if (!window.confirm('Emin misiniz? Bu işlem mevcut tüm okul sorumluları listesini kalıcı olarak silecek ve geri alınamaz.')) {
+            return;
+        }
+
+        setStatus('uploading'); // Re-use uploading status for loading indicator
+        setMessage('Liste siliniyor...');
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !session) throw new Error('Oturum bulunamadı.');
+
+            const response = await fetch('/api/delete-all-sorumlular', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message);
+
+            setMessage(data.message);
+            setStatus('success');
+            setSorumlular([]);
+            setView('upload'); // Switch back to upload view
+            // Clear success message after a few seconds
+            setTimeout(() => {
+                if (status !== 'error') {
+                    setMessage('');
+                }
+            }, 3000);
+
+        } catch (error) {
+            setStatus('error');
+            setMessage(error.message);
+        }
+    };
+
 
     const handleUpload = async (e) => {
         e.preventDefault();
@@ -55,6 +127,8 @@ const SorumluUpload = () => {
             setStatus('success');
             setMessage(data.message);
             setErrorDetails([]);
+            setFile(null);
+            fetchSorumlular(); // Refresh the list after upload
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
@@ -62,35 +136,103 @@ const SorumluUpload = () => {
         }
     };
 
-    return (
-        <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-1">Okul Sorumluları Yönetimi</h2>
-            <p className="text-sm text-gray-500 mb-6">
-                Okul sorumlularını Excel dosyası kullanarak sisteme toplu olarak ekleyin veya güncelleyin.
-                Dosyanızın sütunları şu sırada olmalıdır: <code className="text-xs bg-gray-100 p-1 rounded">Sıra no</code>, <code className="text-xs bg-gray-100 p-1 rounded">ADI SOYADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">ATAMA BRANŞI</code>, <code className="text-xs bg-gray-100 p-1 rounded">İLÇESİ</code>, <code className="text-xs bg-gray-100 p-1 rounded">KURUM KODU</code>, <code className="text-xs bg-gray-100 p-1 rounded">OKUL ADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">Görevlendirme Dönemi</code>.
-            </p>
+    const renderContent = () => {
+        if (view === 'loading') {
+            return (
+                <div className="flex justify-center items-center p-10">
+                    <ArrowPathIcon className="h-8 w-8 animate-spin text-gray-500" />
+                    <p className="ml-3 text-gray-600">Sorumlu listesi yükleniyor...</p>
+                </div>
+            );
+        }
 
-            <form onSubmit={handleUpload} className="space-y-4">
+        if (view === 'list') {
+            return (
                 <div>
-                    <label className="block text-sm font-medium text-gray-600">Excel Dosyası</label>
-                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                        <div className="space-y-1 text-center">
-                            <ArrowUpTrayIcon className="mx-auto h-12 w-12 text-gray-400" />
-                            <div className="flex text-sm text-gray-600">
-                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
-                                    <span>Dosya seçin</span>
-                                    <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
-                                </label>
-                            </div>
-                            <p className="text-xs text-gray-500">{file ? file.name : 'XLSX, XLS, CSV dosyası, en fazla 5MB'}</p>
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 className="text-xl font-bold">Yüklü Okul Sorumluları ({sorumlular.length})</h3>
+                            <p className="text-sm text-gray-500">Mevcut liste aşağıdadır. Yeni bir liste yüklemek için önce mevcut listeyi silmelisiniz.</p>
                         </div>
+                        <button
+                            onClick={handleDeleteAll}
+                            disabled={status === 'uploading'}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400"
+                        >
+                            {status === 'uploading' ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <TrashIcon className="h-5 w-5" />}
+                            Listeyi Sil
+                        </button>
+                    </div>
+                    <div className="overflow-x-auto max-h-[60vh] border rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adı Soyadı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçesi</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Okul Adı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kurum Kodu</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branşı</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dönem</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {sorumlular.map((sorumlu) => (
+                                    <tr key={sorumlu.id}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{sorumlu.ad_soyad}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.ilce_adi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.okul_adi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.kurum_kodu}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.atama_bransi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu.gorevlendirme_donemi}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <button type="submit" disabled={status === 'uploading' || !file} className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2">
-                    {status === 'uploading' ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Yükleniyor...</> : 'Listeyi Yükle ve Kaydet'}
-                </button>
-            </form>
+            );
+        }
 
+        // view === 'upload'
+        return (
+            <>
+                <div className="text-center">
+                    <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h2 className="text-2xl font-bold mt-2">Okul Sorumluları Yönetimi</h2>
+                    <p className="text-sm text-gray-500 mt-1 mb-6">
+                        Sistemde kayıtlı okul sorumlusu bulunmamaktadır.
+                        Lütfen okul sorumlularını Excel dosyası kullanarak sisteme toplu olarak ekleyin.
+                        Dosyanızın sütunları şu sırada olmalıdır: <code className="text-xs bg-gray-100 p-1 rounded">Sıra no</code>, <code className="text-xs bg-gray-100 p-1 rounded">ADI SOYADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">ATAMA BRANŞI</code>, <code className="text-xs bg-gray-100 p-1 rounded">İLÇESİ</code>, <code className="text-xs bg-gray-100 p-1 rounded">KURUM KODU</code>, <code className="text-xs bg-gray-100 p-1 rounded">OKUL ADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">Görevlendirme Dönemi</code>.
+                    </p>
+                </div>
+
+                <form onSubmit={handleUpload} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-600">Excel Dosyası</label>
+                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                            <div className="space-y-1 text-center">
+                                <ArrowUpTrayIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                <div className="flex text-sm text-gray-600">
+                                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                                        <span>Dosya seçin</span>
+                                        <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
+                                    </label>
+                                </div>
+                                <p className="text-xs text-gray-500">{file ? file.name : 'XLSX, XLS, CSV dosyası, en fazla 5MB'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" disabled={status === 'uploading' || !file} className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2">
+                        {status === 'uploading' ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Yükleniyor...</> : 'Listeyi Yükle ve Kaydet'}
+                    </button>
+                </form>
+            </>
+        );
+    };
+
+    return (
+        <div className="p-6 bg-white rounded-lg shadow-md max-w-6xl mx-auto">
+            {renderContent()}
             {message && (
                 <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${status === 'error'
                     ? 'bg-red-50 border border-red-200 text-red-700'
