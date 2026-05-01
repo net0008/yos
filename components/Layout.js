@@ -7,6 +7,7 @@ export default function Layout({ children, title = 'YOS Uygulaması' }) {
                 <title>{title}</title>
                 <meta charSet="utf-8" />
                 <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+                <link rel="icon" href="/favicon.ico" />
             </Head>
             <div className="min-h-screen bg-gray-100">
                 <header className="bg-white shadow">

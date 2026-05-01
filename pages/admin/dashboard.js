@@ -185,7 +185,7 @@ export async function getServerSideProps(context) {
         }
 
         // Mevcut atamalar
-        const { data: assignmentsData } = await supabaseAdmin
+        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
             .select('koordinator_id, okul_sorumlulari(ilce_adi)');
         if (assignmentsError) {
