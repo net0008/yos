@@ -1,19 +1,22 @@
 // components/CoordinatorManagement.js
 import React, { useState } from 'react';
-import { PlusIcon, TrashIcon, UserCircleIcon } from '@heroicons/react/24/solid';
-import { useRouter } from 'next/router';
+import { PlusIcon, TrashIcon, UserCircleIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
-const CoordinatorManagement = ({ initialCoordinators = [] }) => {
-    const router = useRouter();
-    // The list of coordinators is now directly driven by the `initialCoordinators` prop.
+const CoordinatorManagement = ({
+    initialCoordinators = [],
+    onCoordinatorAdded,
+    onCoordinatorDeleted,
+}) => {
+    const [coordinators, setCoordinators] = useState(initialCoordinators);
     const [form, setForm] = useState({ adSoyad: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
+    const [deleteLoadingId, setDeleteLoadingId] = useState(null);
     const [message, setMessage] = useState({ text: '', type: '' });
 
     const showMsg = (text, type = 'success') => {
         setMessage({ text, type });
-        setTimeout(() => setMessage({ text: '', type: '' }), 4000);
+        setTimeout(() => setMessage({ text: '', type: '' }), 5000);
     };
 
     const getToken = async () => {
@@ -24,74 +27,117 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
     const handleAdd = async (e) => {
         e.preventDefault();
         setLoading(true);
+        setMessage({ text: '', type: '' });
 
-        const token = await getToken();
-        const res = await fetch('/api/create-coordinator', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                adSoyad: form.adSoyad,
-                email: form.email,
-                password: form.password,
-            }),
-        });
+        try {
+            const token = await getToken();
+            if (!token) {
+                showMsg('Oturum bulunamadı. Lütfen tekrar giriş yapın.', 'error');
+                return;
+            }
 
-        const data = await res.json();
-        setLoading(false);
+            const res = await fetch('/api/create-coordinator', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    adSoyad: form.adSoyad,
+                    email: form.email,
+                    password: form.password,
+                }),
+            });
 
-        if (!res.ok) {
-            showMsg(data.message, 'error');
-            return;
+            const data = await res.json();
+
+            if (!res.ok) {
+                showMsg(data.message || 'Koordinatör eklenemedi.', 'error');
+                return;
+            }
+
+            // Listeye ekle — sayfa yenilemesi gerekmez
+            const newKoordinator = data.koordinator;
+            setCoordinators(prev => [...prev, newKoordinator]);
+            onCoordinatorAdded?.(newKoordinator); // Dashboard'daki state'i güncelle
+
+            setForm({ adSoyad: '', email: '', password: '' });
+            showMsg(`"${form.adSoyad}" koordinatörü başarıyla eklendi.`, 'success');
+        } catch (err) {
+            showMsg(`Beklenmedik hata: ${err.message}`, 'error');
+        } finally {
+            setLoading(false);
         }
-
-        showMsg(data.message, 'success');
-        setForm({ adSoyad: '', email: '', password: '' });
-        router.replace(router.asPath); // Refetch server-side props to update the list everywhere
     };
 
     const handleDelete = async (koordinatorId, adSoyad) => {
         if (!confirm(`"${adSoyad}" koordinatörünü silmek istediğinizden emin misiniz?`)) return;
 
-        const token = await getToken();
-        const res = await fetch('/api/delete-coordinator', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ koordinatorId }),
-        });
+        setDeleteLoadingId(koordinatorId);
 
-        const data = await res.json();
-        if (res.ok) {
-            showMsg(data.message, 'success');
-            router.replace(router.asPath); // Refetch server-side props to update the list everywhere
-        } else {
-            showMsg(data.message, 'error');
+        try {
+            const token = await getToken();
+            if (!token) {
+                showMsg('Oturum bulunamadı.', 'error');
+                return;
+            }
+
+            const res = await fetch('/api/delete-coordinator', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ koordinatorId }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                showMsg(data.message || 'Silinemedi.', 'error');
+                return;
+            }
+
+            setCoordinators(prev => prev.filter(k => k.id !== koordinatorId));
+            onCoordinatorDeleted?.(koordinatorId); // Dashboard state'ini güncelle
+            showMsg(`"${adSoyad}" başarıyla silindi.`, 'success');
+        } catch (err) {
+            showMsg(`Beklenmedik hata: ${err.message}`, 'error');
+        } finally {
+            setDeleteLoadingId(null);
         }
     };
 
     return (
         <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-1">Koordinatör Yönetimi</h2>
-            <p className="text-sm text-gray-500 mb-6">
+            <h2 className="text-xl font-bold mb-1">Koordinatör Yönetimi</h2>
+            <p className="text-sm text-gray-500 mb-5">
                 Sisteme yeni koordinatör ekleyin veya mevcutları yönetin.
             </p>
 
+            {/* Mesaj */}
+            {message.text && (
+                <div className={`mb-4 p-3 rounded-md text-sm flex items-center gap-2 ${
+                    message.type === 'error'
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-green-50 border border-green-200 text-green-700'
+                }`}>
+                    {message.type === 'error'
+                        ? <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0" />
+                        : <CheckCircleIcon className="h-4 w-4 flex-shrink-0" />}
+                    {message.text}
+                </div>
+            )}
+
             {/* Ekleme Formu */}
-            <form onSubmit={handleAdd} className="bg-gray-50 border rounded-lg p-4 mb-6">
-                <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <PlusIcon className="h-5 w-5 text-indigo-600" />
+            <form onSubmit={handleAdd} className="bg-gray-50 border rounded-lg p-4 mb-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1">
+                    <PlusIcon className="h-4 w-4 text-indigo-600" />
                     Yeni Koordinatör Ekle
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Ad Soyad
-                        </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Ad Soyad</label>
                         <input
                             type="text"
                             value={form.adSoyad}
@@ -102,9 +148,7 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                            E-posta
-                        </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">E-posta</label>
                         <input
                             type="email"
                             value={form.email}
@@ -115,9 +159,7 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Şifre
-                        </label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Şifre</label>
                         <input
                             type="password"
                             value={form.password}
@@ -132,22 +174,12 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="mt-3 px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center gap-2"
+                    className="mt-3 px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center gap-1"
                 >
                     <PlusIcon className="h-4 w-4" />
                     {loading ? 'Ekleniyor...' : 'Koordinatör Ekle'}
                 </button>
             </form>
-
-            {/* Mesaj */}
-            {message.text && (
-                <div className={`mb-4 p-3 rounded-md text-sm ${message.type === 'error'
-                    ? 'bg-red-50 border border-red-200 text-red-700'
-                    : 'bg-green-50 border border-green-200 text-green-700'
-                    }`}>
-                    {message.text}
-                </div>
-            )}
 
             {/* Koordinatör Listesi */}
             <div className="border rounded-lg overflow-hidden">
@@ -155,7 +187,7 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                                Koordinatör
+                                Ad Soyad
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                                 E-posta
@@ -166,18 +198,18 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {initialCoordinators.length === 0 ? (
+                        {coordinators.length === 0 ? (
                             <tr>
                                 <td colSpan={3} className="px-4 py-8 text-center text-gray-400 text-sm">
-                                    Henüz koordinatör eklenmemiş.
+                                    Henüz koordinatör eklenmemiş. Yukarıdaki formu kullanarak ekleyin.
                                 </td>
                             </tr>
                         ) : (
-                            (initialCoordinators || []).map(k => (
-                                <tr key={k.id}>
+                            coordinators.map(k => (
+                                <tr key={k.id} className="hover:bg-gray-50">
                                     <td className="px-4 py-3 whitespace-nowrap">
                                         <div className="flex items-center gap-2">
-                                            <UserCircleIcon className="h-6 w-6 text-gray-500 flex-shrink-0" />
+                                            <UserCircleIcon className="h-5 w-5 text-indigo-400 flex-shrink-0" />
                                             <span className="text-sm font-medium text-gray-900">
                                                 {k.ad_soyad}
                                             </span>
@@ -189,10 +221,12 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                                     <td className="px-4 py-3 whitespace-nowrap text-right">
                                         <button
                                             onClick={() => handleDelete(k.id, k.ad_soyad)}
-                                            className="text-red-500 hover:text-red-700 p-1 rounded"
+                                            disabled={deleteLoadingId === k.id}
+                                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded disabled:opacity-40"
                                             title="Sil"
                                         >
-                                            <TrashIcon className="h-4 w-4" />
+                                            <TrashIcon className="h-3.5 w-3.5" />
+                                            {deleteLoadingId === k.id ? 'Siliniyor...' : 'Sil'}
                                         </button>
                                     </td>
                                 </tr>
@@ -200,6 +234,11 @@ const CoordinatorManagement = ({ initialCoordinators = [] }) => {
                         )}
                     </tbody>
                 </table>
+                {coordinators.length > 0 && (
+                    <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-400 text-right">
+                        Toplam {coordinators.length} koordinatör
+                    </div>
+                )}
             </div>
         </div>
     );

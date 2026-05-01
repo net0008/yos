@@ -4,12 +4,11 @@ import Layout from '../../components/Layout';
 import DistrictAssignment from '../../components/DistrictAssignment';
 import SystemSettings from '../../components/SystemSettings';
 import CoordinatorManagement from '../../components/CoordinatorManagement';
+import SorumluUpload from '../../components/SorumluUpload';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
-import SorumluUpload from '../../components/SorumluUpload';
 
-// İzmir'in 30 ilçesi — DB boş olsa bile her zaman gösterilir
 const IZMIR_ILCELERI = [
     'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
     'Beydağ', 'Bornova', 'Buca', 'Çeşme', 'Çiğli',
@@ -21,11 +20,24 @@ const IZMIR_ILCELERI = [
 
 export default function AdminDashboard({
     districts,
-    coordinators,
+    coordinators: initialCoordinators,
     initialAssignments,
     donemler,
 }) {
     const [activeTab, setActiveTab] = useState('sorumlu');
+
+    // Koordinatör listesini state'de tut — CoordinatorManagement ve
+    // DistrictAssignment aynı güncel listeyi görsün, sayfa yenilemesi gerekmez.
+    const [coordinators, setCoordinators] = useState(initialCoordinators);
+
+    const handleCoordinatorAdded = (newKoordinator) => {
+        setCoordinators(prev => [...prev, newKoordinator]);
+    };
+
+    const handleCoordinatorDeleted = (deletedId) => {
+        setCoordinators(prev => prev.filter(k => k.id !== deletedId));
+    };
+
     const handleSaveSettings = async (settings, token) => {
         const response = await fetch('/api/update-settings', {
             method: 'POST',
@@ -39,10 +51,10 @@ export default function AdminDashboard({
     };
 
     const tabs = [
-        { id: 'sorumlu', name: '1. Aşama: Sorumlu Yönetimi' },
+        { id: 'sorumlu',     name: '1. Aşama: Sorumlu Yönetimi' },
         { id: 'koordinator', name: '2. Aşama: Koordinatör Yönetimi' },
-        { id: 'atama', name: '3. Aşama: Görev Dağılımı' },
-        { id: 'ayarlar', name: '4. Aşama: Sistem Ayarları' },
+        { id: 'atama',       name: '3. Aşama: Görev Dağılımı' },
+        { id: 'ayarlar',     name: '4. Aşama: Sistem Ayarları' },
     ];
 
     const renderContent = () => {
@@ -50,7 +62,13 @@ export default function AdminDashboard({
             case 'sorumlu':
                 return <SorumluUpload />;
             case 'koordinator':
-                return <CoordinatorManagement initialCoordinators={coordinators} />;
+                return (
+                    <CoordinatorManagement
+                        initialCoordinators={coordinators}
+                        onCoordinatorAdded={handleCoordinatorAdded}
+                        onCoordinatorDeleted={handleCoordinatorDeleted}
+                    />
+                );
             case 'atama':
                 return (
                     <DistrictAssignment
@@ -76,10 +94,11 @@ export default function AdminDashboard({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`${activeTab === tab.id
-                                ? 'border-indigo-500 text-indigo-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                            className={`${
+                                activeTab === tab.id
+                                    ? 'border-indigo-500 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             {tab.name}
                         </button>
@@ -87,9 +106,7 @@ export default function AdminDashboard({
                 </nav>
             </div>
 
-            <div className="mt-8">
-                {renderContent()}
-            </div>
+            <div className="mt-4">{renderContent()}</div>
         </Layout>
     );
 }
@@ -122,76 +139,53 @@ export async function getServerSideProps(context) {
         .eq('id', user.id)
         .single();
 
-    // Admin rol kontrolü
     if (profile?.rol !== 'admin') {
         return { redirect: { destination: '/', permanent: false } };
     }
 
     try {
-        // DB'deki sorumlu sayılarını ilçe bazında al
-        const { data: districtCounts, error: countError } = await supabaseAdmin
+        // Sorumlu sayılarını JS tarafında grupla — .group() Supabase JS'de yok
+        const { data: allSorumlular } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi, count')
-            .group('ilce_adi');
+            .select('ilce_adi');
 
-        if (countError) {
-            console.error('Error fetching district counts:', countError);
-            throw countError;
-        }
-
-        // İlçe → sorumlu sayısı map'i
         const sorumluCountMap = {};
-        for (const item of districtCounts || []) {
-            sorumluCountMap[item.ilce_adi] = item.count;
+        for (const s of allSorumlular || []) {
+            if (s.ilce_adi) {
+                sorumluCountMap[s.ilce_adi] = (sorumluCountMap[s.ilce_adi] || 0) + 1;
+            }
         }
 
-        // İzmir ilçelerini DB'deki sayılarla birleştir
+        // İzmir ilçelerini DB'deki gerçek sayılarla birleştir
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        // Koordinatörler
-        const { data: profilesData, error: profilesError } = await supabaseAdmin
+        // Koordinatörler + email
+        const { data: profilesData } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
             .eq('rol', 'koordinator');
 
-        if (profilesError) {
-            console.error('Error fetching coordinator profiles:', profilesError);
-            throw profilesError;
-        }
-
         const coordinators = [];
-        if (profilesData && profilesData.length > 0) {
-            for (const p of profilesData) {
-                try {
-                    const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(p.id);
-                    if (authUserError) {
-                        console.warn(`Could not fetch auth user for profile ID: ${p.id}. Error: ${authUserError.message}. Profile will be listed without email.`);
-                    }
-                    coordinators.push({
-                        id: p.id,
-                        ad_soyad: p.ad_soyad,
-                        email: authUser?.user?.email || 'E-posta alınamadı', // Daha açıklayıcı bir yedek değer
-                    });
-                } catch (e) {
-                    console.warn(`Unexpected error fetching auth user for profile ID: ${p.id}. Error: ${e.message}. Profile will be listed without email.`);
-                    coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: 'E-posta alınamadı' });
-                }
+        for (const p of profilesData || []) {
+            try {
+                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(p.id);
+                coordinators.push({
+                    id: p.id,
+                    ad_soyad: p.ad_soyad,
+                    email: authUser?.user?.email || '',
+                });
+            } catch {
+                coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: '' });
             }
-        } else {
-            console.warn('No coordinator profiles found in the database.');
         }
 
         // Mevcut atamalar
-        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+        const { data: assignmentsData } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
             .select('koordinator_id, okul_sorumlulari(ilce_adi)');
-        if (assignmentsError) {
-            console.error('Error fetching assignments:', assignmentsError);
-            throw assignmentsError;
-        }
 
         const initialAssignments = {};
         for (const row of assignmentsData || []) {
@@ -211,13 +205,9 @@ export async function getServerSideProps(context) {
         };
     } catch (error) {
         console.error('Admin dashboard hatası:', error.message);
-        // Hata olsa bile İzmir ilçelerini göster
         return {
             props: {
-                districts: IZMIR_ILCELERI.map((ilce_adi) => ({
-                    ilce_adi,
-                    sorumlu_count: 0,
-                })),
+                districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
                 coordinators: [],
                 initialAssignments: {},
                 donemler: ['2025-2026 1. Dönem', '2025-2026 2. Dönem'],

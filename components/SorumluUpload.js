@@ -1,34 +1,34 @@
 // components/SorumluUpload.js
 import React, { useState, useEffect } from 'react';
-import { ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon, TrashIcon, UserGroupIcon } from '@heroicons/react/24/solid';
+import {
+    ArrowUpTrayIcon, CheckCircleIcon, ExclamationCircleIcon,
+    ArrowPathIcon, TrashIcon, UserGroupIcon,
+} from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
 const SorumluUpload = () => {
     const [file, setFile] = useState(null);
-    const [status, setStatus] = useState('idle'); // idle, loading, uploading, success, error
+    const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
     const [errorDetails, setErrorDetails] = useState([]);
     const [sorumlular, setSorumlular] = useState([]);
-    const [view, setView] = useState('loading'); // loading, upload, list
+    const [view, setView] = useState('loading');
 
-    // Fetch existing sorumlular on mount
-    useEffect(() => {
-        fetchSorumlular();
-    }, []);
+    useEffect(() => { fetchSorumlular(); }, []);
 
     const fetchSorumlular = async () => {
         setStatus('loading');
         try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error('Oturum bulunamadı.');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Oturum bulunamadı.');
 
             const response = await fetch('/api/get-sorumlular', {
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || `Sunucudan hata kodu ${response.status} alındı.`);
+            if (!response.ok) throw new Error(data.message);
 
-            if (data.sorumlular && data.sorumlular.length > 0) {
+            if (data.sorumlular?.length > 0) {
                 setSorumlular(data.sorumlular);
                 setView('list');
             } else {
@@ -38,7 +38,7 @@ const SorumluUpload = () => {
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
-            setView('upload'); // If fetch fails, show upload form
+            setView('upload');
         } finally {
             setStatus('idle');
         }
@@ -52,49 +52,37 @@ const SorumluUpload = () => {
     };
 
     const handleDeleteAll = async () => {
-        if (!window.confirm('Emin misiniz? Bu işlem mevcut tüm okul sorumluları listesini kalıcı olarak silecek ve geri alınamaz.')) {
-            return;
-        }
+        if (!window.confirm('Emin misiniz? Tüm okul sorumluları kalıcı olarak silinecek.')) return;
 
-        setStatus('uploading'); // Re-use uploading status for loading indicator
+        setStatus('uploading');
         setMessage('Liste siliniyor...');
         try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) throw new Error('Oturum bulunamadı.');
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Oturum bulunamadı.');
 
             const response = await fetch('/api/delete-all-sorumlular', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
-
             const data = await response.json();
             if (!response.ok) throw new Error(data.message);
 
-            const successMessage = data.message;
-            setMessage(successMessage);
+            setMessage(data.message);
             setStatus('success');
             setSorumlular([]);
-            setView('upload'); // Switch back to upload view
-            // Clear success message after a few seconds
-            setTimeout(() => {
-                setMessage(currentMessage =>
-                    currentMessage === successMessage ? '' : currentMessage
-                );
-            }, 3000);
-
+            setView('upload');
+            setTimeout(() => setMessage(''), 3000);
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
         }
     };
 
-
     const handleUpload = async (e) => {
         e.preventDefault();
         if (!file) {
-            setMessage('Lütfen bir Excel (.xlsx, .xls, .csv) dosyası seçin.');
+            setMessage('Lütfen bir Excel dosyası seçin.');
             setStatus('error');
-            setErrorDetails([]);
             return;
         }
         setStatus('uploading');
@@ -104,24 +92,19 @@ const SorumluUpload = () => {
         formData.append('excel', file);
 
         try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
-                throw new Error('Oturum bulunamadı. Lütfen tekrar giriş yapın.');
-            }
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Oturum bulunamadı. Lütfen tekrar giriş yapın.');
 
             const response = await fetch('/api/upload-sorumlu-excel', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`,
-                },
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
                 body: formData,
             });
-
             const data = await response.json();
 
             if (!response.ok) {
-                const err = new Error(data.message || 'Yükleme sırasında bir hata oluştu.');
-                err.details = data.errors; // API'den gelen 'errors' dizisini hataya ekle
+                const err = new Error(data.message || 'Yükleme hatası.');
+                err.details = data.errors;
                 throw err;
             }
 
@@ -129,20 +112,26 @@ const SorumluUpload = () => {
             setMessage(data.message);
             setErrorDetails([]);
             setFile(null);
-            fetchSorumlular(); // Refresh the list after upload
+            fetchSorumlular();
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
-            setErrorDetails(error.details || []); // Hatadan 'details' dizisini al
+            setErrorDetails(error.details || []);
         }
     };
+
+    // İlçe bazında sorumlu sayılarını hesapla
+    const ilceSayilari = sorumlular.reduce((acc, s) => {
+        acc[s.ilce_adi] = (acc[s.ilce_adi] || 0) + 1;
+        return acc;
+    }, {});
 
     const renderContent = () => {
         if (view === 'loading') {
             return (
                 <div className="flex justify-center items-center p-10">
-                    <ArrowPathIcon className="h-6 w-6 animate-spin text-gray-500" />
-                    <p className="ml-3 text-gray-600">Sorumlu listesi yükleniyor...</p>
+                    <ArrowPathIcon className="h-5 w-5 animate-spin text-gray-500" />
+                    <p className="ml-3 text-gray-600 text-sm">Yükleniyor...</p>
                 </div>
             );
         }
@@ -150,17 +139,37 @@ const SorumluUpload = () => {
         if (view === 'list') {
             return (
                 <div>
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                         <div>
-                            <h3 className="text-xl font-bold">Yüklü Okul Sorumluları ({sorumlular.length})</h3>
-                            <p className="text-sm text-gray-500">Mevcut liste aşağıdadır. Yeni bir liste yüklemek için önce mevcut listeyi silmelisiniz.</p>
+                            <h3 className="text-lg font-bold">
+                                Yüklü Okul Sorumluları
+                                <span className="ml-2 text-sm font-normal text-gray-500">
+                                    ({sorumlular.length} kişi · {Object.keys(ilceSayilari).length} ilçe)
+                                </span>
+                            </h3>
+                            {/* İlçe özeti */}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                                {Object.entries(ilceSayilari)
+                                    .sort((a, b) => a[0].localeCompare(b[0]))
+                                    .map(([ilce, sayi]) => (
+                                        <span
+                                            key={ilce}
+                                            className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                        >
+                                            {ilce}
+                                            <span className="ml-1 font-bold">{sayi}</span>
+                                        </span>
+                                    ))}
+                            </div>
                         </div>
                         <button
                             onClick={handleDeleteAll}
                             disabled={status === 'uploading'}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:bg-gray-400"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:bg-gray-400 whitespace-nowrap"
                         >
-                            {status === 'uploading' ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <TrashIcon className="h-5 w-5" />}
+                            {status === 'uploading'
+                                ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                : <TrashIcon className="h-4 w-4" />}
                             Listeyi Sil
                         </button>
                     </div>
@@ -168,25 +177,25 @@ const SorumluUpload = () => {
                         <table className="min-w-full border-collapse">
                             <thead className="bg-gray-50 sticky top-0">
                                 <tr>
-                                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Sıra No</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Adı Soyadı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">İlçesi</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Okul Adı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Kurum Kodu</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Branşı</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-200">Dönem</th>
+                                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border border-gray-200">No</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Adı Soyadı</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">İlçe</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Okul</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Kurum Kodu</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Branş</th>
+                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Dönem</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white">
                                 {sorumlular.map((sorumlu, index) => (
                                     <tr key={sorumlu.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-center border border-gray-200">{index + 1}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 border border-gray-200">{sorumlu.ad_soyad}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.ilce_adi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.okul_adi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.kurum_kodu}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.atama_bransi}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 border border-gray-200">{sorumlu.gorevlendirme_donemi}</td>
+                                        <td className="px-3 py-3 text-center text-xs text-gray-500 border border-gray-200">{index + 1}</td>
+                                        <td className="px-4 py-3 text-sm font-medium text-gray-900 border border-gray-200">{sorumlu.ad_soyad}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.ilce_adi}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.okul_adi || '—'}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.kurum_kodu}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.atama_bransi || '—'}</td>
+                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.gorevlendirme_donemi || '—'}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -199,34 +208,52 @@ const SorumluUpload = () => {
         // view === 'upload'
         return (
             <>
-                <div className="text-center">
-                    <UserGroupIcon className="mx-auto h-10 w-10 text-gray-400" />
-                    <h2 className="text-2xl font-bold mt-2">Okul Sorumluları Yönetimi</h2>
-                    <p className="text-sm text-gray-500 mt-1 mb-6">
-                        Sistemde kayıtlı okul sorumlusu bulunmamaktadır.
-                        Lütfen okul sorumlularını Excel dosyası kullanarak sisteme toplu olarak ekleyin.
-                        Dosyanızın sütunları şu sırada olmalıdır: <code className="text-xs bg-gray-100 p-1 rounded">Sıra no</code>, <code className="text-xs bg-gray-100 p-1 rounded">ADI SOYADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">ATAMA BRANŞI</code>, <code className="text-xs bg-gray-100 p-1 rounded">İLÇESİ</code>, <code className="text-xs bg-gray-100 p-1 rounded">KURUM KODU</code>, <code className="text-xs bg-gray-100 p-1 rounded">OKUL ADI</code>, <code className="text-xs bg-gray-100 p-1 rounded">Görevlendirme Dönemi</code>.
+                <div className="text-center mb-6">
+                    <UserGroupIcon className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                    <h2 className="text-xl font-bold">Okul Sorumluları Yönetimi</h2>
+                    <p className="text-sm text-gray-500 mt-1 max-w-xl mx-auto">
+                        Kayıtlı sorumlu bulunmamaktadır. Excel dosyasındaki sütun sırası:
+                        <span className="font-medium"> Sıra no · ADI SOYADI · ATAMA BRANŞI · İLÇESİ · KURUM KODU · OKUL ADI · Görevlendirme Dönemi</span>
                     </p>
                 </div>
 
-                <form onSubmit={handleUpload} className="space-y-4">
+                <form onSubmit={handleUpload} className="space-y-4 max-w-md mx-auto">
                     <div>
-                        <label className="block text-sm font-medium text-gray-600">Excel Dosyası</label>
-                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <label className="block text-sm font-medium text-gray-600 mb-1">Excel Dosyası</label>
+                        <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
                             <div className="space-y-1 text-center">
-                                <ArrowUpTrayIcon className="mx-auto h-10 w-10 text-gray-400" />
-                                <div className="flex text-sm text-gray-600">
-                                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                                <ArrowUpTrayIcon className="mx-auto h-8 w-8 text-gray-400" />
+                                <div className="text-sm text-gray-600">
+                                    <label
+                                        htmlFor="file-upload"
+                                        className="cursor-pointer font-medium text-indigo-600 hover:text-indigo-500"
+                                    >
                                         <span>Dosya seçin</span>
-                                        <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".xlsx, .xls, .csv" onChange={handleFileChange} />
+                                        <input
+                                            id="file-upload"
+                                            type="file"
+                                            className="sr-only"
+                                            accept=".xlsx,.xls,.csv"
+                                            onChange={handleFileChange}
+                                        />
                                     </label>
                                 </div>
-                                <p className="text-xs text-gray-500">{file ? file.name : 'XLSX, XLS, CSV dosyası, en fazla 5MB'}</p>
+                                <p className="text-xs text-gray-500">
+                                    {file ? file.name : 'XLSX, XLS, CSV — maks. 5MB'}
+                                </p>
                             </div>
                         </div>
                     </div>
-                    <button type="submit" disabled={status === 'uploading' || !file} className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2">
-                        {status === 'uploading' ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Yükleniyor...</> : 'Listeyi Yükle ve Kaydet'}
+                    <button
+                        type="submit"
+                        disabled={status === 'uploading' || !file}
+                        className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2 text-sm"
+                    >
+                        {status === 'uploading' ? (
+                            <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Yükleniyor...</>
+                        ) : (
+                            <><ArrowUpTrayIcon className="h-4 w-4" /> Listeyi Yükle ve Kaydet</>
+                        )}
                     </button>
                 </form>
             </>
@@ -237,18 +264,19 @@ const SorumluUpload = () => {
         <div className="p-6 bg-white rounded-lg shadow-md max-w-6xl mx-auto">
             {renderContent()}
             {message && (
-                <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${status === 'error'
-                    ? 'bg-red-50 border border-red-200 text-red-700'
-                    : 'bg-green-50 border border-green-200 text-green-700'
-                    }`}>
-                    {status === 'error' ? <ExclamationCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" /> : <CheckCircleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />}
+                <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${
+                    status === 'error'
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-green-50 border border-green-200 text-green-700'
+                }`}>
+                    {status === 'error'
+                        ? <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        : <CheckCircleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />}
                     <div>
-                        <p className="font-semibold">{message}</p>
+                        <p className="font-medium">{message}</p>
                         {errorDetails.length > 0 && (
-                            <ul className="list-disc list-inside mt-2 text-xs space-y-1">
-                                {errorDetails.map((detail, index) => (
-                                    <li key={index}>{detail}</li>
-                                ))}
+                            <ul className="list-disc list-inside mt-1 text-xs space-y-0.5">
+                                {errorDetails.map((d, i) => <li key={i}>{d}</li>)}
                             </ul>
                         )}
                     </div>
