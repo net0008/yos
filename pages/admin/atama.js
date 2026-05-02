@@ -1,11 +1,10 @@
 // pages/admin/atama.js
-import React from 'react';
-import Link from 'next/link';
+import React, { useState } from 'react';
 import AdminLayout from '../../components/AdminLayout';
+import DistrictAssignment from '../../components/DistrictAssignment';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
-import { ChevronRightIcon } from '@heroicons/react/24/solid';
 
 const IZMIR_ILCELERI = [
     'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
@@ -16,28 +15,55 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
-export default function AtamaOverviewPage({ districts }) {
+export default function AtamaPage({ districts, coordinators, initialAssignments }) {
+    const [view, setView] = useState('summary'); // 'summary' veya 'assign'
+
+    if (view === 'summary') {
+        return (
+            <AdminLayout activeTab="atama">
+                <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
+                    <h2 className="text-xl font-bold mb-2">3. Aşama: Görev Dağılımı Özeti</h2>
+                    <p className="text-gray-500 text-sm mb-4">Sisteme kayıtlı okul sorumlularının ilçelere göre dağılımı aşağıdadır. Devam ederek koordinatör ataması yapabilirsiniz.</p>
+                    <div className="border rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">İlçe</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Okul Sorumlusu Sayısı</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {districts.map(({ ilce_adi, sorumlu_count }) => (
+                                    <tr key={ilce_adi}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{ilce_adi}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{sorumlu_count}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="mt-6 text-right">
+                        <button
+                            onClick={() => setView('assign')}
+                            className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium"
+                        >
+                            Devam Et ve Atama Yap &rarr;
+                        </button>
+                    </div>
+                </div>
+            </AdminLayout>
+        );
+    }
+
+    // if (view === 'assign')
     return (
         <AdminLayout activeTab="atama">
-            <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
-                <h2 className="text-xl font-bold mb-2">Görev Dağılımı - İlçe Seçimi</h2>
-                <p className="text-gray-500 text-sm mb-4">Atama yapmak veya mevcut atamayı görüntülemek için bir ilçe seçin.</p>
-                <div className="border rounded-lg overflow-hidden">
-                    <ul className="divide-y divide-gray-200">
-                        {districts.map(({ ilce_adi, sorumlu_count }) => (
-                            <li key={ilce_adi}>
-                                <Link href={`/admin/atama/${encodeURIComponent(ilce_adi)}`} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                                    <div>
-                                        <span className="text-md font-medium text-indigo-700">{ilce_adi}</span>
-                                        <span className="ml-3 text-sm text-gray-500">({sorumlu_count} okul sorumlusu)</span>
-                                    </div>
-                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            </div>
+            <button onClick={() => setView('summary')} className="text-sm text-indigo-600 hover:underline mb-4 block">&larr; İlçe Özetine Geri Dön</button>
+            <DistrictAssignment
+                districts={districts}
+                coordinators={coordinators}
+                initialAssignments={initialAssignments}
+            />
         </AdminLayout>
     );
 }
@@ -77,7 +103,9 @@ export async function getServerSideProps(context) {
             return { redirect: { destination: '/', permanent: false } };
         }
 
-        // Sadece ilçe sayılarını verimli bir şekilde çek
+        // --- Veri Çekme ---
+
+        // 1. İlçe sayılarını verimli bir şekilde çek
         const { data: districtsData, error: districtsError } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi, count(id)')
@@ -88,15 +116,38 @@ export async function getServerSideProps(context) {
             acc[d.ilce_adi] = d.count;
             return acc;
         }, {});
-
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
+        // 2. Koordinatörleri çek
+        const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, ad_soyad, email')
+            .eq('rol', 'koordinator');
+        if (coordinatorsError) throw coordinatorsError;
+
+        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek
+        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+        if (assignmentsError) throw assignmentsError;
+
+        // --- Veri İşleme ---
+        const initialAssignments = {};
+        for (const assignment of (assignmentsData || [])) {
+            const ilce = assignment.okul_sorumlulari?.ilce_adi;
+            if (ilce && assignment.koordinator_id && !initialAssignments[ilce]) {
+                initialAssignments[ilce] = assignment.koordinator_id;
+            }
+        }
+
         return {
             props: {
                 districts,
+                coordinators: coordinators || [],
+                initialAssignments,
             }
         };
     } catch (error) {
@@ -105,6 +156,8 @@ export async function getServerSideProps(context) {
         return {
             props: {
                 districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
+                coordinators: [],
+                initialAssignments: {},
             }
         };
     }
