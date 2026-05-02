@@ -62,80 +62,62 @@ export async function getServerSideProps(context) {
             return { redirect: { destination: '/', permanent: false } };
         }
 
-        // Veri çekme işlemlerini paralel ve dayanıklı bir şekilde yapmak için Promise.allSettled kullan.
-        // Bu sayede bir sorgu başarısız olsa bile diğerleri çalışmaya devam eder.
-        const districtsPromise = supabaseAdmin
+        // --- Veri Çekme ---
+        // Karmaşık paralel sorgular yerine, basit ve sıralı sorgular kullanarak sayfa yükleme hatalarını önle.
+
+        // 1. Koordinatörleri çek
+        const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, ad_soyad, email')
+            .eq('rol', 'koordinator');
+        if (coordinatorsError) throw coordinatorsError;
+
+        // 2. Okul sorumlularını çek (sadece ilçe ve id) ve ilçe sayılarını hesapla
+        const { data: sorumlular, error: sorumlularError } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi, count(id)')
-            .group('ilce_adi');
+            .select('id, ilce_adi');
+        if (sorumlularError) throw sorumlularError;
 
-        const coordinatorsPromise = (async () => {
-            // E-posta bilgisini de içeren profilleri tek bir sorguyla verimli bir şekilde al.
-            const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
-                .from('profiles')
-                .select('id, ad_soyad, email')
-                .eq('rol', 'koordinator');
-            if (coordinatorsError) throw coordinatorsError;
-            return coordinators || [];
-        })();
+        const sorumluCountMap = (sorumlular || []).reduce((acc, s) => {
+            acc[s.ilce_adi] = (acc[s.ilce_adi] || 0) + 1;
+            return acc;
+        }, {});
+        const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
+            ilce_adi,
+            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
+        }));
 
-        // Mevcut atamaları veritabanından verimli bir şekilde çekmek için JOIN'li tek bir sorgu kullan.
-        // Bu, tüm okul sorumluları tablosunu çekme ihtiyacını ortadan kaldırır ve sayfa yükleme hatalarını önler.
-        const assignmentsPromise = (async () => {
-            const { data, error } = await supabaseAdmin
-                .from('koordinator_sorumluluklari')
-                .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+        // 3. Mevcut atamaları çek
+        const { data: assignmentsRaw, error: assignmentsError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('koordinator_id, sorumlu_id');
+        if (assignmentsError) throw assignmentsError;
 
-            if (error) throw error;
+        // --- Veri İşleme ---
+        // Hangi sorumlunun hangi ilçede olduğunu hızlıca bulmak için bir harita oluştur.
+        const sorumluToDistrictMap = (sorumlular || []).reduce((acc, s) => {
+            acc[s.id] = s.ilce_adi;
+            return acc;
+        }, {});
 
-            const initialAssignments = {};
-            if (data) {
-                for (const assignment of data) {
-                    // JOIN'den gelen sonuçları işle
-                    if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
-                        // Bir ilçedeki tüm sorumlular aynı koordinatöre atanacağından, her ilçe için bulduğumuz atamayı kullanabiliriz.
-                        initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
-                    }
-                }
+        // Atama verisini { ilce: koordinator_id } formatına dönüştür.
+        const initialAssignments = {};
+        for (const assignment of (assignmentsRaw || [])) {
+            const ilce = sorumluToDistrictMap[assignment.sorumlu_id];
+            // Eğer bir ilçeye ait bir atama bulursak, bunu listeye ekle.
+            // Bir ilçedeki tüm sorumlular aynı kişiye atanacağından, ilk bulduğumuz yeterlidir.
+            if (ilce && !initialAssignments[ilce]) {
+                initialAssignments[ilce] = assignment.koordinator_id;
             }
-            return initialAssignments;
-        })();
-
-        const [
-            districtsResult,
-            coordinatorsResult,
-            assignmentsResult
-        ] = await Promise.allSettled([districtsPromise, coordinatorsPromise, assignmentsPromise]);
-
-        // İlçe verilerini işle
-        let districts = IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 }));
-        if (districtsResult.status === 'fulfilled' && !districtsResult.value.error) {
-            const districtsData = districtsResult.value.data;
-            const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
-                acc[d.ilce_adi] = d.count;
-                return acc;
-            }, {});
-            districts = IZMIR_ILCELERI.map((ilce_adi) => ({
-                ilce_adi,
-                sorumlu_count: sorumluCountMap[ilce_adi] || 0,
-            }));
-        } else if (districtsResult.status === 'rejected' || districtsResult.value.error) {
-            console.error('Atama sayfası ilçe veri çekme hatası:', districtsResult.reason || districtsResult.value.error);
         }
 
-        // Koordinatör verilerini işle
-        const coordinators = coordinatorsResult.status === 'fulfilled' ? coordinatorsResult.value : [];
-        if (coordinatorsResult.status === 'rejected') {
-            console.error('Atama sayfası koordinatör veri çekme hatası:', coordinatorsResult.reason);
-        }
-
-        // Atama verilerini işle
-        const initialAssignments = assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : {};
-        if (assignmentsResult.status === 'rejected') {
-            console.error('Atama sayfası atama veri çekme hatası:', assignmentsResult.reason);
-        }
-
-        return { props: { districts, coordinators, initialAssignments } };
+        return {
+            props: {
+                districts,
+                coordinators: coordinators || [],
+                initialAssignments
+            }
+        };
     } catch (error) {
         console.error('Atama sayfası `getServerSideProps` içinde kritik hata:', error);
         // Hata durumunda sayfayı boş ama kullanılabilir verilerle yükle
