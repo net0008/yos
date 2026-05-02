@@ -174,24 +174,29 @@ export async function getServerSideProps(context) {
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        const { data: profilesData } = await supabaseAdmin
+        // --- Koordinatörleri Verimli Çekme (N+1 Problemi Çözümü) ---
+
+        // 1. Adım: Rolü 'koordinator' olan tüm profilleri çek.
+        const { data: profilesData, error: profilesError } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
             .eq('rol', 'koordinator');
+        if (profilesError) throw profilesError;
 
-        const coordinators = [];
-        for (const p of profilesData || []) {
-            try {
-                const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(p.id);
-                coordinators.push({
-                    id: p.id,
-                    ad_soyad: p.ad_soyad,
-                    email: authUser?.user?.email || '',
-                });
-            } catch {
-                coordinators.push({ id: p.id, ad_soyad: p.ad_soyad, email: '' });
-            }
-        }
+        // 2. Adım: Auth'daki tüm kullanıcıları tek seferde çekerek bir e-posta haritası oluştur.
+        // Not: Bu, 50'den fazla kullanıcı için paginasyon gerektirebilir, ancak mevcut N+1 sorununu tamamen çözer.
+        const { data: { users: authUsers }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        if (usersError) throw usersError;
+
+        const emailMap = authUsers.reduce((acc, user) => {
+            acc[user.id] = user.email;
+            return acc;
+        }, {});
+
+        // 3. Adım: Profil verilerini ve e-posta haritasını birleştir. Bu işlemde veritabanı sorgusu yapılmaz.
+        const coordinators = (profilesData || []).map(p => ({
+            id: p.id, ad_soyad: p.ad_soyad, email: emailMap[p.id] || 'E-posta bulunamadı',
+        }));
 
         // Mevcut atamalar (sorumlu_id -> ilce_adi eşleştirmesi üzerinden)
         const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
