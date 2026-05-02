@@ -184,11 +184,23 @@ export async function getServerSideProps(context) {
         if (profilesError) throw profilesError;
 
         // 2. Adım: Auth'daki tüm kullanıcıları tek seferde çekerek bir e-posta haritası oluştur.
-        // Not: Bu, 50'den fazla kullanıcı için paginasyon gerektirebilir, ancak mevcut N+1 sorununu tamamen çözer.
-        const { data: { users: authUsers }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-        if (usersError) throw usersError;
+        // Paginasyon ile tüm kullanıcıları güvenli bir şekilde çek.
+        const allAuthUsers = [];
+        let page = 1;
+        const perPage = 100; // Supabase limiti genellikle 1000'dir, 100 güvenli bir sayıdır.
+        while (true) {
+            const { data: { users: authUsersPage }, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+            if (usersError) throw usersError;
 
-        const emailMap = authUsers.reduce((acc, user) => {
+            allAuthUsers.push(...authUsersPage);
+
+            if (authUsersPage.length < perPage) {
+                break;
+            }
+            page++;
+        }
+
+        const emailMap = allAuthUsers.reduce((acc, user) => {
             acc[user.id] = user.email;
             return acc;
         }, {});
