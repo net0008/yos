@@ -15,6 +15,9 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
+// Büyük/küçük harf sorunlarını çözmek için normalleştirme fonksiyonu
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 export default function AtamaPage({ districts, coordinators, initialAssignments }) {
     const [view, setView] = useState('summary'); // 'summary' veya 'assign'
 
@@ -69,80 +72,106 @@ export default function AtamaPage({ districts, coordinators, initialAssignments 
 }
 
 export async function getServerSideProps(context) {
-    const { req, res } = context;
-
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        {
-            cookies: {
-                get: (name) => req.cookies[name],
-                set: (name, value, options) => res.setHeader('Set-Cookie', serialize(name, value, options)),
-                remove: (name, options) => res.setHeader('Set-Cookie', serialize(name, '', options)),
-            },
-        }
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { redirect: { destination: '/auth/login', permanent: false } };
-
-    const { data: profile } = await supabaseAdmin.from('profiles').select('rol').eq('id', user.id).single();
-    if (profile?.rol !== 'admin') return { redirect: { destination: '/', permanent: false } };
-
-    let districts = IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 }));
-    let coordinators = [];
-    let initialAssignments = {};
-
-    // --- Veri Çekme (Dayanıklı Yöntem) ---
-    // Her veri parçasını ayrı try-catch bloklarında çekerek birinin hatasının diğerini etkilemesini önle.
-
-    // 1. İlçe sayılarını çek
     try {
-        const { data: districtsData, error } = await supabaseAdmin
+        const { req, res } = context;
+
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            {
+                cookies: {
+                    get: (name) => req.cookies[name],
+                    set: (name, value, options) =>
+                        res.setHeader('Set-Cookie', serialize(name, value, options)),
+                    remove: (name, options) =>
+                        res.setHeader('Set-Cookie', serialize(name, '', options)),
+                },
+            }
+        );
+
+        // Daha güvenli yetkilendirme kontrolü
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData?.user) {
+            return { redirect: { destination: '/auth/login', permanent: false } };
+        }
+        const user = authData.user;
+
+        const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('rol')
+            .eq('id', user.id)
+            .single();
+
+        if (profile?.rol !== 'admin') {
+            return { redirect: { destination: '/', permanent: false } };
+        }
+
+        // --- Veri Çekme ---
+
+        // 1. İlçe sayılarını verimli bir şekilde çek
+        const { data: districtsData, error: districtsError } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi, count(id)')
             .group('ilce_adi');
-        if (error) throw error;
+        if (districtsError) throw districtsError;
+
         const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
             acc[d.ilce_adi] = d.count;
             return acc;
         }, {});
-        districts = IZMIR_ILCELERI.map((ilce_adi) => ({
+        const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
-    } catch (error) {
-        console.error('Atama sayfası ilçe sayıları çekilirken hata:', error);
-    }
 
-    // 2. Koordinatörleri çek
-    try {
-        const { data, error } = await supabaseAdmin.from('profiles').select('id, ad_soyad, email').eq('rol', 'koordinator');
-        if (error) throw error;
-        coordinators = data || [];
-    } catch (error) {
-        console.error('Atama sayfası koordinatörler çekilirken hata:', error);
-    }
+        // 2. Koordinatörleri çek
+        const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
+            .from('profiles')
+            .select('id, ad_soyad, email')
+            .eq('rol', 'koordinator');
+        if (coordinatorsError) throw coordinatorsError;
 
-    // 3. Mevcut atamaları çek
-    try {
-        const { data, error } = await supabaseAdmin.from('koordinator_sorumluluklari').select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
-        if (error) throw error;
-        for (const assignment of (data || [])) {
-            const ilce = assignment.okul_sorumlulari?.ilce_adi;
-            if (ilce && assignment.koordinator_id && !initialAssignments[ilce]) {
-                initialAssignments[ilce] = assignment.koordinator_id;
+        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek
+        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+        if (assignmentsError) throw assignmentsError;
+
+        // --- Veri İşleme ---
+        const initialAssignments = {};
+        for (const assignment of (assignmentsData || [])) {
+            const ilceFromDb = assignment.okul_sorumlulari?.ilce_adi;
+
+            if (ilceFromDb && assignment.koordinator_id) {
+                // Veritabanından gelen ilçe adını (örn: "aliağa") standart listedeki
+                // karşılığıyla ("Aliağa") eşleştir.
+                const canonicalIlce = IZMIR_ILCELERI.find(
+                    (i) => normalize(i) === normalize(ilceFromDb)
+                );
+                // Atama listesinin anahtarı olarak her zaman standart adı kullan.
+                const key = canonicalIlce || ilceFromDb;
+                if (!initialAssignments[key]) {
+                    initialAssignments[key] = assignment.koordinator_id;
+                }
             }
         }
-    } catch (error) {
-        console.error('Atama sayfası atamalar çekilirken hata:', error);
-    }
 
-    return {
-        props: {
-            districts,
-            coordinators,
-            initialAssignments,
-        }
-    };
+        return {
+            props: {
+                districts,
+                coordinators: coordinators || [],
+                initialAssignments,
+            }
+        };
+    } catch (error) {
+        console.error('Atama anasayfası `getServerSideProps` içinde kritik hata:', error);
+        // Hata durumunda sayfayı boş ama kullanılabilir verilerle yükle
+        return {
+            props: {
+                districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
+                coordinators: [],
+                initialAssignments: {},
+            }
+        };
+    }
 }
