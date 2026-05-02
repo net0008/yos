@@ -15,9 +15,6 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
-// Büyük/küçük harf sorunlarını çözmek için normalleştirme fonksiyonu
-const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
-
 export default function AtamaPage({ districts, coordinators, initialAssignments }) {
     const [view, setView] = useState('summary'); // 'summary' veya 'assign'
 
