@@ -79,28 +79,23 @@ export async function getServerSideProps(context) {
             return coordinators || [];
         })();
 
-        // Karmaşık iç içe sorgu yerine iki basit sorgu kullanarak atamaları daha güvenilir bir şekilde çek.
+        // Mevcut atamaları veritabanından verimli bir şekilde çekmek için JOIN'li tek bir sorgu kullan.
+        // Bu, tüm okul sorumluları tablosunu çekme ihtiyacını ortadan kaldırır ve sayfa yükleme hatalarını önler.
         const assignmentsPromise = (async () => {
-            const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
+            const { data, error } = await supabaseAdmin
                 .from('koordinator_sorumluluklari')
-                .select('koordinator_id, sorumlu_id');
-            if (assignmentsErr) throw assignmentsErr;
+                .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
 
-            const { data: sorumlularMapData, error: sorumlularMapErr } = await supabaseAdmin
-                .from('okul_sorumlulari')
-                .select('id, ilce_adi');
-            if (sorumlularMapErr) throw sorumlularMapErr;
-
-            const sorumluToDistrict = (sorumlularMapData || []).reduce((acc, row) => {
-                acc[row.id] = row.ilce_adi;
-                return acc;
-            }, {});
+            if (error) throw error;
 
             const initialAssignments = {};
-            for (const row of assignmentsRaw || []) {
-                const ilce = sorumluToDistrict[row.sorumlu_id];
-                if (ilce && row.koordinator_id && !initialAssignments[ilce]) {
-                    initialAssignments[ilce] = row.koordinator_id;
+            if (data) {
+                for (const assignment of data) {
+                    // JOIN'den gelen sonuçları işle
+                    if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
+                        // Bir ilçedeki tüm sorumlular aynı koordinatöre atanacağından, her ilçe için bulduğumuz atamayı kullanabiliriz.
+                        initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
+                    }
                 }
             }
             return initialAssignments;
