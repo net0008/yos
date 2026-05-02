@@ -93,11 +93,7 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                         <td className="py-2.5 px-5 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-medium text-gray-800">
-                                                    {ilce_adi}
-                                                </span>
-                                                {/* Parantez içinde sorumlu sayısı — her zaman gösterilir */}
-                                                <span className="text-xs text-gray-400">
-                                                    ({sorumlu_count} okul sorumlusu)
+                                                    {`${ilce_adi} (${sorumlu_count} okul sorumlusu)`}
                                                 </span>
                                                 {isAssigned && state?.status !== 'loading' && (
                                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 font-medium">

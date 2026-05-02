@@ -79,6 +79,8 @@ export default function AdminDashboard({
                 return (
                     <CoordinatorManagement
                         initialCoordinators={coordinators}
+                        districts={districts}
+                        initialAssignments={initialAssignments}
                         onCoordinatorAdded={handleCoordinatorAdded}
                         onCoordinatorDeleted={handleCoordinatorDeleted}
                     />
