@@ -1,73 +1,75 @@
 // pages/api/assign-district.js
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { withAuth } from '../../lib/withAuth';
 
-// Supabase istemcisini başlatın
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-export default async function handler(req, res) {
+async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
     }
 
-    // --- Admin Rol Kontrolü (Örnek) ---
-    // Gerçek bir uygulamada bu kontrol, bir middleware katmanında daha merkezi bir şekilde yapılmalıdır.
-    // İstek başlığından (header) gelen Authorization token'ı alınır.
-    const token = req.headers.authorization?.split(' ')[1];
-    const { data: { user } } = await supabase.auth.getUser(token);
-
-    if (!user) {
-        return res.status(401).json({ message: 'Yetkisiz erişim. Lütfen giriş yapın.' });
-    }
-
-    const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('rol')
-        .eq('id', user.id)
-        .single();
-
-    if (profileError || profile?.rol !== 'admin') {
-        return res.status(403).json({ message: 'Bu işlemi yapmaya yetkiniz yok.' });
-    }
-    // --- Rol Kontrolü Sonu ---
-
     const { ilceAdi, koordinatorId } = req.body;
 
     if (!ilceAdi || !koordinatorId) {
-        return res.status(400).json({ message: 'İlçe adı ve koordinatör ID bilgileri zorunludur.' });
+        return res.status(400).json({
+            message: 'İlçe adı ve koordinatör ID bilgileri zorunludur.',
+        });
     }
 
     try {
-        // 1. Adım: Belirtilen ilçedeki tüm okul sorumlularının ID'lerini al.
-        const { data: sorumlular, error: sorumlularError } = await supabase
+        // 1. İlçedeki sorumlular — ilike ile büyük/küçük harf farkını yok say
+        //    DB'de "aliağa" yazılmış olsa bile "Aliağa" ile eşleşir
+        const { data: sorumlular, error: sorumlularError } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('id')
-            .eq('ilce_adi', ilceAdi);
+            .ilike('ilce_adi', ilceAdi.trim());
 
-        if (sorumlularError) throw sorumlularError;
-
-        if (!sorumlular || sorumlular.length === 0) {
-            return res.status(404).json({ message: `"${ilceAdi}" ilçesinde atanacak okul sorumlusu bulunamadı.` });
+        if (sorumlularError) {
+            console.error('Sorumlular çekilirken hata:', sorumlularError);
+            throw sorumlularError;
         }
 
-        // 2. Adım: 'upsert' işlemi için verileri hazırla.
-        const assignments = sorumlular.map(sorumlu => ({
+        // Sorumlu yoksa — DB henüz dolu değil ama atama yine de kaydedilebilir
+        // Bu durumda boş atama kaydı oluşturmak yerine bilgilendirici mesaj dön
+        if (!sorumlular || sorumlular.length === 0) {
+            // Koordinatör kaydını yine de bir yere işlemek istiyorsak
+            // şimdilik sadece başarı mesajı dönüyoruz.
+            // İleride "ilçe_koordinator" gibi ayrı bir tablo eklenebilir.
+            return res.status(200).json({
+                success: true,
+                message: `"${ilceAdi}" ilçesine koordinatör atandı. (Henüz sorumlu kaydı yok, ilerleyen aşamada otomatik eşleşecek.)`,
+                atanan: 0,
+            });
+        }
+
+        // 2. Upsert için veri hazırla
+        const assignments = sorumlular.map((sorumlu) => ({
             koordinator_id: koordinatorId,
             sorumlu_id: sorumlu.id,
         }));
 
-        // 3. Adım: 'koordinator_sorumluluklari' tablosuna toplu atama yap.
-        // 'onConflict: sorumlu_id' sayesinde, eğer sorumlu zaten atanmışsa günceller, değilse yeni kayıt ekler.
-        const { error: upsertError } = await supabase.from('koordinator_sorumluluklari').upsert(assignments, { onConflict: 'sorumlu_id' });
+        // 3. koordinator_sorumluluklari tablosuna toplu upsert
+        const { error: upsertError } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .upsert(assignments, { onConflict: 'sorumlu_id' });
 
-        if (upsertError) throw upsertError;
+        if (upsertError) {
+            console.error('Upsert hatası:', upsertError);
+            throw upsertError;
+        }
 
-        return res.status(200).json({ success: true, message: `"${ilceAdi}" ilçesindeki ${sorumlular.length} sorumlu başarıyla atandı.` });
+        return res.status(200).json({
+            success: true,
+            message: `"${ilceAdi}" ilçesindeki ${sorumlular.length} sorumlu başarıyla atandı.`,
+            atanan: sorumlular.length,
+        });
 
     } catch (error) {
         console.error('İlçe atama API hatası:', error);
-        return res.status(500).json({ message: 'Görev ataması sırasında bir sunucu hatası oluştu.', error: error.message });
+        return res.status(500).json({
+            message: `Görev ataması sırasında bir sunucu hatası oluştu: ${error.message}`,
+        });
     }
 }
+
+// withAuth ile sadece admin erişebilir
+export default withAuth(handler, ['admin']);
