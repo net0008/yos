@@ -12,6 +12,22 @@ export const config = {
     },
 };
 
+const IZMIR_ILCELERI = [
+    'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
+    'Beydağ', 'Bornova', 'Buca', 'Çeşme', 'Çiğli',
+    'Dikili', 'Foça', 'Gaziemir', 'Güzelbahçe', 'Karabağlar',
+    'Karaburun', 'Karşıyaka', 'Kemalpaşa', 'Kınık', 'Kiraz',
+    'Konak', 'Menderes', 'Menemen', 'Narlıdere', 'Ödemiş',
+    'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
+];
+
+// İlçe adını standart formata (örn: "Aliağa") çeviren yardımcı fonksiyon
+const findCanonicalIlce = (name) => {
+    if (!name) return null;
+    const normalizedName = name.trim().toLocaleLowerCase('tr-TR');
+    return IZMIR_ILCELERI.find(canonical => canonical.toLocaleLowerCase('tr-TR') === normalizedName);
+};
+
 async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
@@ -60,7 +76,10 @@ async function handler(req, res) {
             const excelRowNumber = index + 2;
             const kurumKodu = String(row.kurum_kodu || '').trim();
             const adSoyad = row.ad_soyad?.trim();
-            const ilceAdi = row.ilce_adi?.trim();
+
+            // İlçe adını standart hale getir
+            const ilceAdiRaw = row.ilce_adi?.trim();
+            const ilceAdi = findCanonicalIlce(ilceAdiRaw);
 
             // 1. (Kurum Kodu, Ad Soyad) tekrarını dosya içinde kontrol et.
             // Bu, aynı kişinin aynı okula iki kez eklenmesini engeller.
@@ -86,6 +105,10 @@ async function handler(req, res) {
                 } else {
                     validationErrors.push(`Satır ${excelRowNumber}: Geçersiz "Görevlendirme Dönemi" değeri: "${row.gorevlendirme_donemi}". İzin verilen değerler: 'Tam Gün', 'Sabah', 'Öğle' veya boş.`);
                 }
+            }
+
+            if (ilceAdiRaw && !ilceAdi) {
+                validationErrors.push(`Satır ${excelRowNumber}: Geçersiz veya bilinmeyen ilçe adı: "${ilceAdiRaw}".`);
             }
 
             if (adSoyad && kurumKodu && ilceAdi) {

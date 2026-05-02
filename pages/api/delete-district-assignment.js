@@ -15,7 +15,7 @@ async function handler(req, res) {
         const { data: sorumlular, error: sErr } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('id')
-            .eq('ilce_adi', ilceAdi);
+            .ilike('ilce_adi', ilceAdi);
 
         if (sErr) throw sErr;
 

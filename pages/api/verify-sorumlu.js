@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const { data, error } = await supabase
       .from('okul_sorumlulari')
       .select('id, ad_soyad')
-      .eq('ilce_adi', ilce)
+      .ilike('ilce_adi', ilce)
       .eq('ad_soyad', adSoyad)
       .eq('kurum_kodu', kurumKodu)
       .single(); // Tek bir sonuç bekliyoruz
