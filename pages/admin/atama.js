@@ -72,16 +72,14 @@ export async function getServerSideProps(context) {
             .eq('rol', 'koordinator');
         if (coordinatorsError) throw coordinatorsError;
 
-        // 2. İlçe sayılarını veritabanında verimli bir şekilde hesapla.
-        // Tüm listeyi çekip JS'de saymak yerine, veritabanının 'count' ve 'group' özelliklerini kullan.
-        const { data: districtsData, error: districtsError } = await supabaseAdmin
+        // 2. Okul sorumlularını çek (sadece ilçe ve id) ve ilçe sayılarını hesapla
+        const { data: sorumlular, error: sorumlularError } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi, count(id)')
-            .group('ilce_adi');
-        if (districtsError) throw districtsError;
+            .select('id, ilce_adi');
+        if (sorumlularError) throw sorumlularError;
 
-        const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
-            acc[d.ilce_adi] = d.count;
+        const sorumluCountMap = (sorumlular || []).reduce((acc, s) => {
+            acc[s.ilce_adi] = (acc[s.ilce_adi] || 0) + 1;
             return acc;
         }, {});
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
@@ -89,21 +87,26 @@ export async function getServerSideProps(context) {
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek.
-        // Bu, tüm okul sorumluları listesini çekme ihtiyacını ortadan kaldırır.
-        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+        // 3. Mevcut atamaları çek
+        const { data: assignmentsRaw, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+            .select('koordinator_id, sorumlu_id');
         if (assignmentsError) throw assignmentsError;
 
         // --- Veri İşleme ---
+        // Hangi sorumlunun hangi ilçede olduğunu hızlıca bulmak için bir harita oluştur.
+        const sorumluToDistrictMap = (sorumlular || []).reduce((acc, s) => {
+            acc[s.id] = s.ilce_adi;
+            return acc;
+        }, {});
+
         // Atama verisini { ilce: koordinator_id } formatına dönüştür.
         const initialAssignments = {};
-        for (const assignment of (assignmentsData || [])) {
-            const ilce = assignment.okul_sorumlulari?.ilce_adi;
-            // JOIN'den gelen sonuçları işle.
+        for (const assignment of (assignmentsRaw || [])) {
+            const ilce = sorumluToDistrictMap[assignment.sorumlu_id];
+            // Eğer bir ilçeye ait bir atama bulursak, bunu listeye ekle.
             // Bir ilçedeki tüm sorumlular aynı koordinatöre atanacağından, her ilçe için bulduğumuz ilk atama yeterlidir.
-            if (ilce && assignment.koordinator_id && !initialAssignments[ilce]) {
+            if (ilce && !initialAssignments[ilce]) {
                 initialAssignments[ilce] = assignment.koordinator_id;
             }
         }
