@@ -11,10 +11,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 
 const CoordinatorManagement = ({
-    initialCoordinators = [],
-    onCoordinatorAdded,
-    onCoordinatorDeleted,
-}) => {
+    initialCoordinators = [] }) => {
     const [coordinators, setCoordinators] = useState(initialCoordinators);
     const [form, setForm] = useState({ adSoyad: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
@@ -73,7 +70,6 @@ const CoordinatorManagement = ({
 
             const newCoordinator = data.koordinator;
             setCoordinators((prev) => [...prev, newCoordinator]);
-            onCoordinatorAdded?.(newCoordinator);
             setForm({ adSoyad: '', email: '', password: '' });
             showMsg(`"${newCoordinator.ad_soyad}" başarıyla eklendi.`);
         } catch (err) {
@@ -113,8 +109,6 @@ const CoordinatorManagement = ({
             }
 
             setCoordinators((prev) => prev.filter((k) => k.id !== koordinatorId));
-
-            onCoordinatorDeleted?.(koordinatorId);
             showMsg(`"${adSoyad}" başarıyla silindi.`);
         } catch (err) {
             showMsg(`Hata: ${err.message}`, 'error');

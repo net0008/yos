@@ -1,130 +1,22 @@
 // pages/admin/dashboard.js
-import React, { useState } from 'react';
-import Layout from '../../components/Layout';
-import DistrictAssignment from '../../components/DistrictAssignment';
-import SystemSettings from '../../components/SystemSettings';
-import CoordinatorManagement from '../../components/CoordinatorManagement';
+import React from 'react';
+import AdminLayout from '../../components/AdminLayout'; // New Layout
 import SorumluUpload from '../../components/SorumluUpload';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
-
-const IZMIR_ILCELERI = [
-    'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
-    'Beydağ', 'Bornova', 'Buca', 'Çeşme', 'Çiğli',
-    'Dikili', 'Foça', 'Gaziemir', 'Güzelbahçe', 'Karabağlar',
-    'Karaburun', 'Karşıyaka', 'Kemalpaşa', 'Kınık', 'Kiraz',
-    'Konak', 'Menderes', 'Menemen', 'Narlıdere', 'Ödemiş',
-    'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
-];
-
-export default function AdminDashboard({
-    districts: initialDistricts,
-    coordinators: initialCoordinators,
-    initialAssignments,
-    donemler,
-}) {
-    const [activeTab, setActiveTab] = useState('sorumlu');
-
-    const [coordinators, setCoordinators] = useState(initialCoordinators);
-    const [districts, setDistricts] = useState(initialDistricts);
-
-    const handleCoordinatorAdded = (newKoordinator) => {
-        setCoordinators(prev => [...prev, newKoordinator]);
-    };
-
-    const handleCoordinatorDeleted = (deletedId) => {
-        setCoordinators(prev => prev.filter(k => k.id !== deletedId));
-    };
-
-    const handleSorumluListChange = (sorumluList) => {
-        const sorumluCountMap = (sorumluList || []).reduce((acc, s) => {
-            if (s.ilce_adi) {
-                acc[s.ilce_adi] = (acc[s.ilce_adi] || 0) + 1;
-            }
-            return acc;
-        }, {});
-
-        const updatedDistricts = IZMIR_ILCELERI.map((ilce_adi) => ({
-            ilce_adi,
-            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
-        }));
-        setDistricts(updatedDistricts);
-    };
-
-    const handleSaveSettings = async (settings, token) => {
-        const response = await fetch('/api/update-settings', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify(settings),
-        });
-        return await response.json();
-    };
-
-    const tabs = [
-        { id: 'sorumlu', name: '1. Aşama: Sorumlu Yönetimi' },
-        { id: 'koordinator', name: '2. Aşama: Koordinatör Yönetimi' },
-        { id: 'atama', name: '3. Aşama: Görev Dağılımı' },
-        { id: 'ayarlar', name: '4. Aşama: Sistem Ayarları' },
-    ];
-
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'sorumlu':
-                return <SorumluUpload onSorumluListChange={handleSorumluListChange} />;
-            case 'koordinator':
-                return (
-                    <CoordinatorManagement
-                        initialCoordinators={coordinators}
-                        onCoordinatorAdded={handleCoordinatorAdded}
-                        onCoordinatorDeleted={handleCoordinatorDeleted}
-                    />
-                );
-            case 'atama':
-                return (
-                    <DistrictAssignment
-                        districts={districts}
-                        coordinators={coordinators}
-                        initialAssignments={initialAssignments}
-                    />
-                );
-            case 'ayarlar':
-                return <SystemSettings donemler={donemler} onSave={handleSaveSettings} />;
-            default:
-                return null;
-        }
-    };
-
+export default function SorumluManagementPage() {
+    // The onSorumluListChange prop is no longer needed as pages are separate.
     return (
-        <Layout title="Admin Paneli">
-            <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Yönetim Paneli</h1>
-
-            <div className="mb-6 border-b border-gray-200">
-                <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`${activeTab === tab.id
-                                ? 'border-indigo-500 text-indigo-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                        >
-                            {tab.name}
-                        </button>
-                    ))}
-                </nav>
-            </div>
-
-            <div className="mt-4">{renderContent()}</div>
-        </Layout>
+        <AdminLayout activeTab="sorumlu">
+            <SorumluUpload />
+        </AdminLayout>
     );
 }
 
 export async function getServerSideProps(context) {
+    // This function now only needs to perform authentication and authorization.
+    // The component itself fetches the data it needs.
     const { req, res } = context;
 
     const supabase = createServerClient(
@@ -156,101 +48,6 @@ export async function getServerSideProps(context) {
         return { redirect: { destination: '/', permanent: false } };
     }
 
-    try {
-        const { data: districtsData, error: districtsError } = await supabaseAdmin
-            .from('okul_sorumlulari')
-            .select('ilce_adi, count(id)')
-            .group('ilce_adi');
-
-        if (districtsError) throw districtsError;
-
-        const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
-            acc[d.ilce_adi] = d.count;
-            return acc;
-        }, {});
-
-        const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
-            ilce_adi,
-            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
-        }));
-
-        // --- Koordinatörleri Verimli Çekme (N+1 Problemi Çözümü) ---
-
-        // 1. Adım: Rolü 'koordinator' olan tüm profilleri çek.
-        const { data: profilesData, error: profilesError } = await supabaseAdmin
-            .from('profiles')
-            .select('id, ad_soyad')
-            .eq('rol', 'koordinator');
-        if (profilesError) throw profilesError;
-
-        // 2. Adım: Auth'daki tüm kullanıcıları tek seferde çekerek bir e-posta haritası oluştur.
-        // Paginasyon ile tüm kullanıcıları güvenli bir şekilde çek.
-        const allAuthUsers = [];
-        let page = 1;
-        const perPage = 100; // Supabase limiti genellikle 1000'dir, 100 güvenli bir sayıdır.
-        while (true) {
-            const { data: { users: authUsersPage }, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-            if (usersError) throw usersError;
-
-            allAuthUsers.push(...authUsersPage);
-
-            if (authUsersPage.length < perPage) {
-                break;
-            }
-            page++;
-        }
-
-        const emailMap = allAuthUsers.reduce((acc, user) => {
-            acc[user.id] = user.email;
-            return acc;
-        }, {});
-
-        // 3. Adım: Profil verilerini ve e-posta haritasını birleştir. Bu işlemde veritabanı sorgusu yapılmaz.
-        const coordinators = (profilesData || []).map(p => ({
-            id: p.id, ad_soyad: p.ad_soyad, email: emailMap[p.id] || 'E-posta bulunamadı',
-        }));
-
-        // Mevcut atamalar (sorumlu_id -> ilce_adi eşleştirmesi üzerinden)
-        const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
-            .from('koordinator_sorumluluklari')
-            .select('koordinator_id, sorumlu_id');
-        if (assignmentsErr) throw assignmentsErr;
-
-        const { data: sorumlularMapData, error: sorumlularMapErr } = await supabaseAdmin
-            .from('okul_sorumlulari')
-            .select('id, ilce_adi');
-        if (sorumlularMapErr) throw sorumlularMapErr;
-
-        const sorumluToDistrict = (sorumlularMapData || []).reduce((acc, row) => {
-            acc[row.id] = row.ilce_adi;
-            return acc;
-        }, {});
-
-        const initialAssignments = {};
-        for (const row of assignmentsRaw || []) {
-            const ilce = sorumluToDistrict[row.sorumlu_id];
-            if (ilce && row.koordinator_id && !initialAssignments[ilce]) {
-                initialAssignments[ilce] = row.koordinator_id;
-            }
-        }
-
-        return {
-            props: {
-                districts,
-                coordinators,
-                initialAssignments,
-                donemler: ['2025-2026 1. Dönem', '2025-2026 2. Dönem'],
-            },
-        };
-    } catch (error) {
-        console.error('Admin dashboard hatası:', error.message);
-        return {
-            props: {
-                districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
-                coordinators: [],
-                initialAssignments: {},
-                donemler: ['2025-2026 1. Dönem', '2025-2026 2. Dönem'],
-            },
-        };
-    }
+    // No data needs to be passed to the page component as props.
+    return { props: {} };
 }

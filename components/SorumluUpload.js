@@ -5,7 +5,7 @@ import {
     ArrowPathIcon, TrashIcon, UserGroupIcon,
 } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
-const SorumluUpload = ({ onSorumluListChange }) => {
+const SorumluUpload = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
@@ -30,7 +30,6 @@ const SorumluUpload = ({ onSorumluListChange }) => {
 
             const fetchedSorumlular = data.sorumlular || [];
             setSorumlular(fetchedSorumlular);
-            onSorumluListChange?.(fetchedSorumlular);
 
             if (fetchedSorumlular.length > 0) {
                 setView('list');
@@ -42,7 +41,6 @@ const SorumluUpload = ({ onSorumluListChange }) => {
             setMessage(error.message);
             setView('upload');
             setSorumlular([]);
-            onSorumluListChange?.([]);
         } finally {
             setStatus('idle');
         }
@@ -71,7 +69,6 @@ const SorumluUpload = ({ onSorumluListChange }) => {
             setMessage(data.message);
             setStatus('success');
             setSorumlular([]);
-            onSorumluListChange?.([]);
             setView('upload');
             setTimeout(() => setMessage(''), 3000);
         } catch (error) {
@@ -265,8 +262,8 @@ const SorumluUpload = ({ onSorumluListChange }) => {
             {renderContent()}
             {message && (
                 <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${status === 'error'
-                        ? 'bg-red-50 border border-red-200 text-red-700'
-                        : 'bg-green-50 border border-green-200 text-green-700'
+                    ? 'bg-red-50 border border-red-200 text-red-700'
+                    : 'bg-green-50 border border-green-200 text-green-700'
                     }`}>
                     {status === 'error'
                         ? <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
