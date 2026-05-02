@@ -128,18 +128,39 @@ export async function getServerSideProps(context) {
             .eq('rol', 'koordinator');
         if (coordinatorsError) throw coordinatorsError;
 
-        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek
-        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+        // 3. Mevcut atamaları çek (daha sağlam bir yöntemle)
+        // Adım 3a: Önce tüm ham atamaları (koordinator_id, sorumlu_id) çek. Bu tablo genellikle küçüktür.
+        const { data: assignmentsRaw, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+            .select('koordinator_id, sorumlu_id');
         if (assignmentsError) throw assignmentsError;
 
         // --- Veri İşleme ---
         const initialAssignments = {};
-        for (const assignment of (assignmentsData || [])) {
-            const ilce = assignment.okul_sorumlulari?.ilce_adi;
-            if (ilce && assignment.koordinator_id && !initialAssignments[ilce]) {
-                initialAssignments[ilce] = assignment.koordinator_id;
+        if (assignmentsRaw && assignmentsRaw.length > 0) {
+            // Adım 3b: Ataması yapılmış olan okul sorumlularının ID'lerini topla.
+            const sorumluIdsWithAssignment = assignmentsRaw.map(a => a.sorumlu_id);
+
+            // Adım 3c: Sadece bu ID'lere sahip sorumluların ilçe bilgilerini çek.
+            // Bu, tüm 'okul_sorumlulari' tablosunu çekmekten çok daha verimlidir.
+            const { data: sorumlularData, error: sorumlularError } = await supabaseAdmin
+                .from('okul_sorumlulari')
+                .select('id, ilce_adi')
+                .in('id', sorumluIdsWithAssignment);
+            if (sorumlularError) throw sorumlularError;
+
+            // Adım 3d: Hızlı arama için bir harita oluştur (sorumlu_id -> ilce_adi).
+            const sorumluToDistrictMap = sorumlularData.reduce((acc, s) => {
+                acc[s.id] = s.ilce_adi;
+                return acc;
+            }, {});
+
+            // Adım 3e: Son atama haritasını oluştur.
+            for (const assignment of assignmentsRaw) {
+                const ilce = sorumluToDistrictMap[assignment.sorumlu_id];
+                if (ilce && !initialAssignments[ilce]) {
+                    initialAssignments[ilce] = assignment.koordinator_id;
+                }
             }
         }
 
