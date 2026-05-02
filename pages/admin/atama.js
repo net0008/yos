@@ -1,10 +1,11 @@
 // pages/admin/atama.js
 import React from 'react';
+import Link from 'next/link';
 import AdminLayout from '../../components/AdminLayout';
-import DistrictAssignment from '../../components/DistrictAssignment';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
+import { ChevronRightIcon } from '@heroicons/react/24/solid';
 
 const IZMIR_ILCELERI = [
     'Aliağa', 'Balçova', 'Bayındır', 'Bayraklı', 'Bergama',
@@ -15,14 +16,28 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
-export default function AtamaPage({ districts, coordinators, initialAssignments }) {
+export default function AtamaOverviewPage({ districts }) {
     return (
         <AdminLayout activeTab="atama">
-            <DistrictAssignment
-                districts={districts}
-                coordinators={coordinators}
-                initialAssignments={initialAssignments}
-            />
+            <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
+                <h2 className="text-xl font-bold mb-2">Görev Dağılımı - İlçe Seçimi</h2>
+                <p className="text-gray-500 text-sm mb-4">Atama yapmak veya mevcut atamayı görüntülemek için bir ilçe seçin.</p>
+                <div className="border rounded-lg overflow-hidden">
+                    <ul className="divide-y divide-gray-200">
+                        {districts.map(({ ilce_adi, sorumlu_count }) => (
+                            <li key={ilce_adi}>
+                                <Link href={`/admin/atama/${encodeURIComponent(ilce_adi)}`} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                                    <div>
+                                        <span className="text-md font-medium text-indigo-700">{ilce_adi}</span>
+                                        <span className="ml-3 text-sm text-gray-500">({sorumlu_count} okul sorumlusu)</span>
+                                    </div>
+                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
         </AdminLayout>
     );
 }
@@ -62,18 +77,7 @@ export async function getServerSideProps(context) {
             return { redirect: { destination: '/', permanent: false } };
         }
 
-        // --- Veri Çekme ---
-        // Karmaşık paralel sorgular yerine, basit ve sıralı sorgular kullanarak sayfa yükleme hatalarını önle.
-
-        // 1. Koordinatörleri çek
-        const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
-            .from('profiles')
-            .select('id, ad_soyad, email')
-            .eq('rol', 'koordinator');
-        if (coordinatorsError) throw coordinatorsError;
-
-        // 2. İlçe sayılarını veritabanında verimli bir şekilde hesapla.
-        // Tüm listeyi çekip JS'de saymak yerine, veritabanının 'count' ve 'group' özelliklerini kullan.
+        // Sadece ilçe sayılarını verimli bir şekilde çek
         const { data: districtsData, error: districtsError } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi, count(id)')
@@ -84,45 +88,23 @@ export async function getServerSideProps(context) {
             acc[d.ilce_adi] = d.count;
             return acc;
         }, {});
+
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek.
-        // Bu, tüm okul sorumluları listesini çekme ihtiyacını ortadan kaldırır.
-        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
-            .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
-        if (assignmentsError) throw assignmentsError;
-
-        // --- Veri İşleme ---
-        // Atama verisini { ilce: koordinator_id } formatına dönüştür.
-        const initialAssignments = {};
-        for (const assignment of (assignmentsData || [])) {
-            const ilce = assignment.okul_sorumlulari?.ilce_adi;
-            // JOIN'den gelen sonuçları işle.
-            // Bir ilçedeki tüm sorumlular aynı koordinatöre atanacağından, her ilçe için bulduğumuz ilk atama yeterlidir.
-            if (ilce && assignment.koordinator_id && !initialAssignments[ilce]) {
-                initialAssignments[ilce] = assignment.koordinator_id;
-            }
-        }
-
         return {
             props: {
                 districts,
-                coordinators: coordinators || [],
-                initialAssignments
             }
         };
     } catch (error) {
-        console.error('Atama sayfası `getServerSideProps` içinde kritik hata:', error);
+        console.error('Atama anasayfası `getServerSideProps` içinde kritik hata:', error);
         // Hata durumunda sayfayı boş ama kullanılabilir verilerle yükle
         return {
             props: {
                 districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
-                coordinators: [],
-                initialAssignments: {}
             }
         };
     }
