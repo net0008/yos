@@ -25,11 +25,6 @@ const CoordinatorManagement = ({
         setCoordinators(initialCoordinators || []);
     }, [initialCoordinators]);
 
-    useEffect(() => {
-        setMessage({ text, type });
-        setTimeout(() => setMessage({ text: '', type: '' }), 5000);
-    };
-
     const showMsg = (text, type = 'success') => {
         setMessage({ text, type });
         setTimeout(() => setMessage({ text: '', type: '' }), 5000);
@@ -129,8 +124,8 @@ const CoordinatorManagement = ({
             {message.text && (
                 <div
                     className={`mb-4 p-3 rounded-md text-sm flex items-center gap-2 ${message.type === 'error'
-                            ? 'bg-red-50 border border-red-200 text-red-700'
-                            : 'bg-green-50 border border-green-200 text-green-700'
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-green-50 border border-green-200 text-green-700'
                         }`}
                 >
                     {message.type === 'error' ? (
