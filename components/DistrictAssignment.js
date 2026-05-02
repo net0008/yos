@@ -89,7 +89,6 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
 
                                 return (
                                     <tr key={ilce_adi} className="hover:bg-gray-50">
-                                        {/* İlçe adı + sorumlu sayısı */}
                                         <td className="py-2.5 px-5 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-medium text-gray-800">
@@ -103,7 +102,6 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                             </div>
                                         </td>
 
-                                        {/* Koordinatör dropdown */}
                                         <td className="py-2.5 px-5">
                                             <select
                                                 value={assignments[ilce_adi] || ''}
@@ -124,7 +122,6 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                             </select>
                                         </td>
 
-                                        {/* Kaydet + durum */}
                                         <td className="py-2.5 px-5">
                                             <div className="flex items-center gap-2">
                                                 <button

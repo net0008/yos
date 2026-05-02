@@ -159,7 +159,6 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // Sorumlu sayılarını veritabanında grupla
         const { data: districtsData, error: districtsError } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi, count(id)')
@@ -171,13 +170,12 @@ export async function getServerSideProps(context) {
             acc[d.ilce_adi] = d.count;
             return acc;
         }, {});
-        // İzmir ilçelerini DB'deki gerçek sayılarla birleştir
+
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[ilce_adi] || 0,
         }));
 
-        // Koordinatörler + email
         const { data: profilesData } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
@@ -197,15 +195,26 @@ export async function getServerSideProps(context) {
             }
         }
 
-        // Mevcut atamalar
-        const { data: assignmentsData } = await supabaseAdmin
+        // Mevcut atamalar (sorumlu_id -> ilce_adi eşleştirmesi üzerinden)
+        const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari(ilce_adi)');
+            .select('koordinator_id, sorumlu_id');
+        if (assignmentsErr) throw assignmentsErr;
+
+        const { data: sorumlularMapData, error: sorumlularMapErr } = await supabaseAdmin
+            .from('okul_sorumlulari')
+            .select('id, ilce_adi');
+        if (sorumlularMapErr) throw sorumlularMapErr;
+
+        const sorumluToDistrict = (sorumlularMapData || []).reduce((acc, row) => {
+            acc[row.id] = row.ilce_adi;
+            return acc;
+        }, {});
 
         const initialAssignments = {};
-        for (const row of assignmentsData || []) {
-            const ilce = row.okul_sorumlulari?.ilce_adi;
-            if (ilce && row.koordinator_id) {
+        for (const row of assignmentsRaw || []) {
+            const ilce = sorumluToDistrict[row.sorumlu_id];
+            if (ilce && row.koordinator_id && !initialAssignments[ilce]) {
                 initialAssignments[ilce] = row.koordinator_id;
             }
         }

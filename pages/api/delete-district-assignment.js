@@ -27,7 +27,7 @@ export default async function handler(req, res) {
       const { error: dErr } = await supabaseAdmin
         .from('koordinator_sorumluluklari')
         .delete()
-        .in('okul_sorumlusu_id', ids);
+        .in('sorumlu_id', ids);
       if (dErr) throw dErr;
     }
 
