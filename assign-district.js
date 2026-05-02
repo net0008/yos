@@ -1,75 +1,120 @@
 // pages/api/assign-district.js
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import { withAuth } from '../../lib/withAuth';
+import { createClient } from '@supabase/supabase-js';
 
-async function handler(req, res) {
+export default async function handler(req, res) {
+    // Her zaman JSON dön — HTML hiçbir zaman dönmesin
+    res.setHeader('Content-Type', 'application/json');
+
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
     }
 
+    // ── Supabase Admin client ────────────────────────────────────────────────
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !serviceKey) {
+        console.error('assign-district: Supabase env vars eksik');
+        return res.status(500).json({ message: 'Sunucu yapılandırma hatası.' });
+    }
+
+    const supabase = createClient(supabaseUrl, serviceKey, {
+        auth: { persistSession: false },
+    });
+
+    // ── Token doğrulama ──────────────────────────────────────────────────────
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+        return res.status(401).json({ message: 'Yetkilendirme token\'ı bulunamadı.' });
+    }
+
+    let user;
+    try {
+        const { data, error } = await supabase.auth.getUser(token);
+        if (error || !data?.user) {
+            return res.status(401).json({ message: 'Geçersiz token.' });
+        }
+        user = data.user;
+    } catch (e) {
+        console.error('assign-district auth hatası:', e);
+        return res.status(401).json({ message: 'Token doğrulanamadı.' });
+    }
+
+    // ── Rol kontrolü ────────────────────────────────────────────────────────
+    try {
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('rol')
+            .eq('id', user.id)
+            .single();
+
+        if (profileError || !profile) {
+            return res.status(403).json({ message: 'Profil bulunamadı.' });
+        }
+        if (profile.rol !== 'admin') {
+            return res.status(403).json({ message: 'Bu işlem için admin yetkisi gerekli.' });
+        }
+    } catch (e) {
+        console.error('assign-district profil hatası:', e);
+        return res.status(500).json({ message: 'Profil sorgulanırken hata oluştu.' });
+    }
+
+    // ── İstek gövdesi ────────────────────────────────────────────────────────
     const { ilceAdi, koordinatorId } = req.body;
 
     if (!ilceAdi || !koordinatorId) {
-        return res.status(400).json({
-            message: 'İlçe adı ve koordinatör ID bilgileri zorunludur.',
+        return res.status(400).json({ message: 'ilceAdi ve koordinatorId zorunludur.' });
+    }
+
+    const ilceTrimmed = String(ilceAdi).trim();
+
+    // ── Sorumlular ───────────────────────────────────────────────────────────
+    let sorumlular;
+    try {
+        const { data, error } = await supabase
+            .from('okul_sorumlulari')
+            .select('id')
+            .ilike('ilce_adi', ilceTrimmed);   // büyük/küçük harf farkını yok say
+
+        if (error) throw error;
+        sorumlular = data || [];
+    } catch (e) {
+        console.error('assign-district sorumlular sorgusu hatası:', e);
+        return res.status(500).json({ message: `Sorumlular sorgulanırken hata: ${e.message}` });
+    }
+
+    // Sorumlu yoksa — koordinatör atama kaydı oluşturulamaz ama hata vermek yerine
+    // bilgilendirici mesaj dön (1. aşamada henüz sorumlu yüklenmemiş olabilir)
+    if (sorumlular.length === 0) {
+        return res.status(200).json({
+            success: true,
+            message: `"${ilceTrimmed}" ilçesinde henüz kayıtlı sorumlu yok. Sorumlu listesi yüklendiğinde atama otomatik eşleşecek.`,
+            atanan: 0,
         });
     }
 
+    // ── Upsert ──────────────────────────────────────────────────────────────
     try {
-        // 1. İlçedeki sorumlular — ilike ile büyük/küçük harf farkını yok say
-        //    DB'de "aliağa" yazılmış olsa bile "Aliağa" ile eşleşir
-        const { data: sorumlular, error: sorumlularError } = await supabaseAdmin
-            .from('okul_sorumlulari')
-            .select('id')
-            .ilike('ilce_adi', ilceAdi.trim());
-
-        if (sorumlularError) {
-            console.error('Sorumlular çekilirken hata:', sorumlularError);
-            throw sorumlularError;
-        }
-
-        // Sorumlu yoksa — DB henüz dolu değil ama atama yine de kaydedilebilir
-        // Bu durumda boş atama kaydı oluşturmak yerine bilgilendirici mesaj dön
-        if (!sorumlular || sorumlular.length === 0) {
-            // Koordinatör kaydını yine de bir yere işlemek istiyorsak
-            // şimdilik sadece başarı mesajı dönüyoruz.
-            // İleride "ilçe_koordinator" gibi ayrı bir tablo eklenebilir.
-            return res.status(200).json({
-                success: true,
-                message: `"${ilceAdi}" ilçesine koordinatör atandı. (Henüz sorumlu kaydı yok, ilerleyen aşamada otomatik eşleşecek.)`,
-                atanan: 0,
-            });
-        }
-
-        // 2. Upsert için veri hazırla
-        const assignments = sorumlular.map((sorumlu) => ({
+        const assignments = sorumlular.map((s) => ({
             koordinator_id: koordinatorId,
-            sorumlu_id: sorumlu.id,
+            sorumlu_id:     s.id,
         }));
 
-        // 3. koordinator_sorumluluklari tablosuna toplu upsert
-        const { error: upsertError } = await supabaseAdmin
+        const { error: upsertError } = await supabase
             .from('koordinator_sorumluluklari')
             .upsert(assignments, { onConflict: 'sorumlu_id' });
 
-        if (upsertError) {
-            console.error('Upsert hatası:', upsertError);
-            throw upsertError;
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: `"${ilceAdi}" ilçesindeki ${sorumlular.length} sorumlu başarıyla atandı.`,
-            atanan: sorumlular.length,
-        });
-
-    } catch (error) {
-        console.error('İlçe atama API hatası:', error);
-        return res.status(500).json({
-            message: `Görev ataması sırasında bir sunucu hatası oluştu: ${error.message}`,
-        });
+        if (upsertError) throw upsertError;
+    } catch (e) {
+        console.error('assign-district upsert hatası:', e);
+        return res.status(500).json({ message: `Atama kaydedilirken hata: ${e.message}` });
     }
-}
 
-// withAuth ile sadece admin erişebilir
-export default withAuth(handler, ['admin']);
+    return res.status(200).json({
+        success: true,
+        message: `"${ilceTrimmed}" ilçesindeki ${sorumlular.length} sorumlu başarıyla atandı.`,
+        atanan: sorumlular.length,
+    });
+}
