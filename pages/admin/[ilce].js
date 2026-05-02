@@ -1,12 +1,12 @@
 // pages/admin/atama/[ilce].js
 import React, { useState } from 'react';
 import Link from 'next/link';
-import AdminLayout from '../../../components/AdminLayout';
-import { supabaseAdmin } from '../../../lib/supabaseAdmin';
+import AdminLayout from '../../components/AdminLayout';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/solid';
-import { supabase } from '../../../lib/supabaseClient';
+import { supabase } from '../../lib/supabaseClient';
 
 const SingleDistrictAssignment = ({ district, coordinators, initialAssignment }) => {
     const [assignment, setAssignment] = useState(initialAssignment || '');
