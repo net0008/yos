@@ -57,8 +57,8 @@ BEGIN
             'ai_incelendi',
             'koordinator_onayinda',
             'onaylandi',
-            'reddedildi',
-            'duzeltme_bekleniyor',
+            'reddedildi',            
+            'duzeltme_istendi',
             'ai_analiz_hatasi',
             'RAPOR_GONDERILMEMIS',
             'RAPOR_OKUNMUYOR',
@@ -84,8 +84,8 @@ CREATE TABLE IF NOT EXISTS public.raporlar (
   pdf_storage_path TEXT,
   yuklenme_tarihi TIMESTAMP WITH TIME ZONE,
   ai_analiz_sonucu JSONB,
-  koordinator_onayi BOOLEAN DEFAULT FALSE,
-  status public.rapor_status,
+  koordinator_notu TEXT,
+  status public.rapor_status DEFAULT 'beklemede',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE (sorumlu_id, donem, ay) -- Bir sorumlu, bir dönemde bir ay için sadece tek bir rapor yükleyebilir.
 );

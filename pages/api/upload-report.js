@@ -95,7 +95,6 @@ export default async function handler(req, res) {
           status: 'beklemede', // Yeni yüklenen raporun başlangıç durumu
           yuklenme_tarihi: new Date().toISOString(),
           ai_analiz_sonucu: null, // AI analizi yeniden yapılacağı için sıfırla
-          koordinator_onayi: false, // Onay durumu sıfırla
         })
         .eq('id', existingReport.id);
       dbError = error;
