@@ -15,6 +15,9 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
+const normalize = (str) =>
+    (str || '').trim().toLocaleLowerCase('tr-TR');
+
 export default function AtamaPage({ districts, coordinators, initialAssignments }) {
     const [view, setView] = useState('summary'); // 'summary' veya 'assign'
 
@@ -105,22 +108,21 @@ export async function getServerSideProps(context) {
 
         // --- Veri Çekme ---
 
-        // 1. İlçe sayılarını büyük/küçük harfe duyarsız bir şekilde hesapla
-        // Veritabanındaki 'aliağa' ve 'Aliağa' gibi kayıtların doğru sayılması için tüm listeyi çekip JS'de saymak en güvenli yoldur.
+        // 1. Hem ilçe sayıları hem de atama eşleştirmesi için tüm sorumluları (id ve ilce_adi ile) çek.
         const { data: allSorumlular, error: sorumlularError } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi');
+            .select('id, ilce_adi');
         if (sorumlularError) throw sorumlularError;
 
         const sorumluCountMap = {};
         for (const s of allSorumlular || []) {
-            const key = normalize(s.ilce_adi);
+            const key = s.ilce_adi ? normalize(s.ilce_adi) : null;
             if (key) sorumluCountMap[key] = (sorumluCountMap[key] || 0) + 1;
         }
 
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
-            sorumlu_count: sorumluCountMap[normalize(ilce_adi)] || 0,
+            sorumlu_count: sorumluCountMap[normalize(ilce_adi)] || 0
         }));
 
         // 2. Koordinatörleri çek
@@ -130,23 +132,25 @@ export async function getServerSideProps(context) {
             .eq('rol', 'koordinator');
         if (coordinatorsError) throw coordinatorsError;
 
-        // 3. Mevcut atamaları verimli bir JOIN sorgusu ile çek
-        const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
+        // 3. Mevcut atamaları çek (JOIN yerine JS'de birleştirme - daha sağlam bir yöntem)
+        // Adım 3a: Ham atamaları çek (koordinator_id, sorumlu_id)
+        const { data: assignmentsRaw, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari!inner(ilce_adi)');
+            .select('koordinator_id, sorumlu_id');
         if (assignmentsError) throw assignmentsError;
 
         // --- Veri İşleme ---
+        // Adım 3b: Sorumlu ID'sinden ilçe adına hızlı bir harita oluştur.
+        const sorumluToDistrictMap = (allSorumlular || []).reduce((acc, s) => {
+            acc[s.id] = s.ilce_adi;
+            return acc;
+        }, {});
+
+        // Adım 3c: Ham atamaları işleyerek nihai { ilce: koordinator_id } haritasını oluştur.
         const initialAssignments = {};
-        for (const assignment of (assignmentsData || [])) {
-            // Supabase'in bazen tekil ilişkiyi dizi olarak döndürme ihtimaline karşı kodu daha sağlam hale getir.
-            const sorumluData = Array.isArray(assignment.okul_sorumlulari)
-                ? assignment.okul_sorumlulari[0]
-                : assignment.okul_sorumlulari;
-
-            const ilceFromDb = sorumluData?.ilce_adi;
-
-            if (ilceFromDb && assignment.koordinator_id) {
+        for (const assignment of (assignmentsRaw || [])) {
+            const ilceFromDb = sorumluToDistrictMap[assignment.sorumlu_id];
+            if (ilceFromDb) {
                 // Veritabanından gelen ilçe adını (örn: "aliağa") standart listedeki
                 // karşılığıyla ("Aliağa") eşleştir.
                 const canonicalIlce = IZMIR_ILCELERI.find(
