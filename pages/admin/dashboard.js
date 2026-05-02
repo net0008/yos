@@ -109,8 +109,8 @@ export default function AdminDashboard({
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`${activeTab === tab.id
-                                    ? 'border-indigo-500 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-indigo-500 text-indigo-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                 } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             {tab.name}
@@ -157,18 +157,18 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // Sorumlu sayılarını JS tarafında grupla — .group() Supabase JS'de yok
-        const { data: allSorumlular } = await supabaseAdmin
+        // Sorumlu sayılarını veritabanında grupla
+        const { data: districtsData, error: districtsError } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi');
+            .select('ilce_adi, count(id)')
+            .group('ilce_adi');
 
-        const sorumluCountMap = {};
-        for (const s of allSorumlular || []) {
-            if (s.ilce_adi) {
-                sorumluCountMap[s.ilce_adi] = (sorumluCountMap[s.ilce_adi] || 0) + 1;
-            }
-        }
+        if (districtsError) throw districtsError;
 
+        const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
+            acc[d.ilce_adi] = d.count;
+            return acc;
+        }, {});
         // İzmir ilçelerini DB'deki gerçek sayılarla birleştir
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
