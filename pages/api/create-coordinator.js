@@ -18,7 +18,7 @@ async function handler(req, res) {
     }
 
     try {
-        // 1. Supabase Auth'da kullanıcı oluştur
+        // 1. Supabase Auth'da kullanıcı oluşturmayı dene
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
@@ -26,23 +26,65 @@ async function handler(req, res) {
         });
 
         if (authError) {
+            // Eğer hata, kullanıcının zaten kayıtlı olduğunu belirtiyorsa...
             if (authError.message.includes('already registered')) {
-                return res.status(409).json({ message: 'Bu e-posta adresi zaten kayıtlı.' });
+                // ...bu, "yetim" bir auth kaydı olabilir. Durumu düzeltmeye çalışalım.
+                // Not: `listUsers` tüm kullanıcıları getirdiği için yavaş olabilir,
+                // ama bu sadece bir hata kurtarma senaryosunda çalışır.
+                const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+                if (listError) {
+                    return res.status(409).json({ message: 'Bu e-posta adresi zaten kayıtlı, ancak kurtarma işlemi sırasında kullanıcı listesi alınamadı.' });
+                }
+
+                const existingUser = users.find(u => u.email === email);
+
+                if (!existingUser) {
+                    return res.status(500).json({ message: 'Veritabanında tutarsızlık tespit edildi. Auth kullanıcısı var diyor ama listede bulunamadı.' });
+                }
+
+                // Yetim kullanıcıyı bulduk. Profilinin olup olmadığını kontrol edelim.
+                const { data: profile, error: profileCheckError } = await supabaseAdmin
+                    .from('profiles')
+                    .select('id')
+                    .eq('id', existingUser.id)
+                    .single();
+
+                // Eğer profili zaten varsa, bu durumda gerçekten "kullanıcı mevcut" hatasıdır.
+                if (profile) {
+                    return res.status(409).json({ message: 'Bu e-posta adresi zaten kayıtlı bir koordinatöre ait.' });
+                }
+
+                // Profil yoksa (beklenen hata kodu PGRST116), oluşturalım.
+                if (!profile && profileCheckError?.code === 'PGRST116') {
+                    const { error: profileInsertError } = await supabaseAdmin
+                        .from('profiles')
+                        .insert({ id: existingUser.id, ad_soyad: adSoyad, rol: 'koordinator' });
+
+                    if (profileInsertError) throw profileInsertError;
+
+                    // Kullanıcının şifresini de güncelleyelim.
+                    await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { password });
+
+                    return res.status(200).json({
+                        success: true,
+                        message: `Mevcut kullanıcı "${adSoyad}" için eksik olan profil oluşturuldu.`,
+                        koordinator: { id: existingUser.id, ad_soyad: adSoyad, email },
+                    });
+                }
+
+                if (profileCheckError) throw profileCheckError;
             }
+            // "already registered" dışındaki diğer tüm auth hatalarını fırlat.
             throw authError;
         }
 
-        // 2. profiles tablosuna koordinatör kaydı ekle
+        // 2. Auth kullanıcısı başarıyla oluşturulduysa, profiles tablosuna kaydı ekle
         const { error: profileError } = await supabaseAdmin
             .from('profiles')
-            .insert({
-                id: authData.user.id,
-                ad_soyad: adSoyad,
-                rol: 'koordinator',
-            });
+            .insert({ id: authData.user.id, ad_soyad: adSoyad, rol: 'koordinator' });
 
         if (profileError) {
-            // Auth kaydını geri al
+            // Profil oluşturma başarısız olursa, oluşturulan auth kullanıcısını geri al (rollback).
             await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
             throw profileError;
         }
@@ -50,7 +92,7 @@ async function handler(req, res) {
         return res.status(200).json({
             success: true,
             message: `"${adSoyad}" koordinatörü başarıyla oluşturuldu.`,
-            koordinator: { id: authData.user.id, ad_soyad: adSoyad, email },
+            koordinator: { id: authData.user.id, ad_soyad: adSoyad, email }
         });
 
     } catch (error) {
