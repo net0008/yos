@@ -6,7 +6,7 @@ import {
 } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
-const SorumluUpload = ({ onSorumluListChange }) => {
+const SorumluUpload = () => {
     const [file, setFile] = useState(null);
     const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
@@ -21,27 +21,22 @@ const SorumluUpload = ({ onSorumluListChange }) => {
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Oturum bulunamadı.');
-
             const response = await fetch('/api/get-sorumlular', {
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message);
-
-            const fetchedSorumlular = data.sorumlular || [];
-            if (fetchedSorumlular.length > 0) {
-                setSorumlular(fetchedSorumlular);
+            if (data.sorumlular?.length > 0) {
+                setSorumlular(data.sorumlular);
                 setView('list');
             } else {
                 setSorumlular([]);
                 setView('upload');
             }
-            onSorumluListChange?.(fetchedSorumlular);
         } catch (error) {
             setStatus('error');
             setMessage(error.message);
             setView('upload');
-            onSorumluListChange?.([]);
         } finally {
             setStatus('idle');
         }
@@ -56,25 +51,21 @@ const SorumluUpload = ({ onSorumluListChange }) => {
 
     const handleDeleteAll = async () => {
         if (!window.confirm('Emin misiniz? Tüm okul sorumluları kalıcı olarak silinecek.')) return;
-
         setStatus('uploading');
         setMessage('Liste siliniyor...');
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Oturum bulunamadı.');
-
             const response = await fetch('/api/delete-all-sorumlular', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message);
-
             setMessage(data.message);
             setStatus('success');
             setSorumlular([]);
             setView('upload');
-            onSorumluListChange?.([]);
             setTimeout(() => setMessage(''), 3000);
         } catch (error) {
             setStatus('error');
@@ -91,27 +82,22 @@ const SorumluUpload = ({ onSorumluListChange }) => {
         }
         setStatus('uploading');
         setMessage('');
-
         const formData = new FormData();
         formData.append('excel', file);
-
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Oturum bulunamadı. Lütfen tekrar giriş yapın.');
-
             const response = await fetch('/api/upload-sorumlu-excel', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${session.access_token}` },
                 body: formData,
             });
             const data = await response.json();
-
             if (!response.ok) {
                 const err = new Error(data.message || 'Yükleme hatası.');
                 err.details = data.errors;
                 throw err;
             }
-
             setStatus('success');
             setMessage(data.message);
             setErrorDetails([]);
@@ -134,8 +120,8 @@ const SorumluUpload = ({ onSorumluListChange }) => {
         if (view === 'loading') {
             return (
                 <div className="flex justify-center items-center p-10">
-                    <ArrowPathIcon className="h-5 w-5 animate-spin text-gray-500" />
-                    <p className="ml-3 text-gray-600 text-sm">Yükleniyor...</p>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin text-gray-500" />
+                    <p className="ml-2 text-gray-600 text-sm">Yükleniyor...</p>
                 </div>
             );
         }
@@ -145,23 +131,23 @@ const SorumluUpload = ({ onSorumluListChange }) => {
                 <div>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
                         <div>
-                            <h3 className="text-lg font-bold">
+                            <h3 className="text-lg font-bold text-gray-800">
                                 Yüklü Okul Sorumluları
                                 <span className="ml-2 text-sm font-normal text-gray-500">
                                     ({sorumlular.length} kişi · {Object.keys(ilceSayilari).length} ilçe)
                                 </span>
                             </h3>
-                            {/* İlçe özeti */}
-                            <div className="flex flex-wrap gap-2 mt-2">
+                            {/* İlçe bazında özet badge'ler */}
+                            <div className="flex flex-wrap gap-1.5 mt-2">
                                 {Object.entries(ilceSayilari)
-                                    .sort((a, b) => a[0].localeCompare(b[0]))
+                                    .sort((a, b) => a[0].localeCompare(b[0], 'tr'))
                                     .map(([ilce, sayi]) => (
                                         <span
                                             key={ilce}
                                             className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 border border-indigo-100"
                                         >
                                             {ilce}
-                                            <span className="ml-1 font-bold">{sayi}</span>
+                                            <span className="ml-1 font-bold bg-indigo-100 text-indigo-800 rounded px-1">{sayi}</span>
                                         </span>
                                     ))}
                             </div>
@@ -169,19 +155,20 @@ const SorumluUpload = ({ onSorumluListChange }) => {
                         <button
                             onClick={handleDeleteAll}
                             disabled={status === 'uploading'}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:bg-gray-400 whitespace-nowrap"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 disabled:bg-gray-400 whitespace-nowrap"
                         >
                             {status === 'uploading'
-                                ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                : <TrashIcon className="h-4 w-4" />}
+                                ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                                : <TrashIcon className="h-3.5 w-3.5" />}
                             Listeyi Sil
                         </button>
                     </div>
-                    <div className="overflow-x-auto max-h-[60vh] border border-gray-200 rounded-lg overflow-hidden">
+
+                    <div className="overflow-x-auto max-h-[60vh] border border-gray-200 rounded-lg">
                         <table className="min-w-full border-collapse">
                             <thead className="bg-gray-50 sticky top-0">
                                 <tr>
-                                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border border-gray-200">No</th>
+                                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase border border-gray-200 w-12">No</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Adı Soyadı</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">İlçe</th>
                                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase border border-gray-200">Okul</th>
@@ -193,13 +180,13 @@ const SorumluUpload = ({ onSorumluListChange }) => {
                             <tbody className="bg-white">
                                 {sorumlular.map((sorumlu, index) => (
                                     <tr key={sorumlu.id} className="hover:bg-gray-50">
-                                        <td className="px-3 py-3 text-center text-xs text-gray-500 border border-gray-200">{index + 1}</td>
-                                        <td className="px-4 py-3 text-sm font-medium text-gray-900 border border-gray-200">{sorumlu.ad_soyad}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.ilce_adi}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.okul_adi || '—'}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.kurum_kodu}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.atama_bransi || '—'}</td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 border border-gray-200">{sorumlu.gorevlendirme_donemi || '—'}</td>
+                                        <td className="px-3 py-2.5 text-center text-xs text-gray-400 border border-gray-200">{index + 1}</td>
+                                        <td className="px-4 py-2.5 text-sm font-medium text-gray-900 border border-gray-200">{sorumlu.ad_soyad}</td>
+                                        <td className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200">{sorumlu.ilce_adi}</td>
+                                        <td className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200">{sorumlu.okul_adi || '—'}</td>
+                                        <td className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200">{sorumlu.kurum_kodu}</td>
+                                        <td className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200">{sorumlu.atama_bransi || '—'}</td>
+                                        <td className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200">{sorumlu.gorevlendirme_donemi || '—'}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -213,10 +200,11 @@ const SorumluUpload = ({ onSorumluListChange }) => {
         return (
             <>
                 <div className="text-center mb-6">
-                    <UserGroupIcon className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                    <h2 className="text-xl font-bold">Okul Sorumluları Yönetimi</h2>
+                    {/* İkon küçültüldü: h-10 → h-6 */}
+                    <UserGroupIcon className="mx-auto h-6 w-6 text-gray-400 mb-2" />
+                    <h2 className="text-lg font-bold text-gray-800">Okul Sorumluları Yönetimi</h2>
                     <p className="text-sm text-gray-500 mt-1 max-w-xl mx-auto">
-                        Kayıtlı sorumlu bulunmamaktadır. Excel dosyasındaki sütun sırası:
+                        Kayıtlı sorumlu bulunmamaktadır. Excel sütun sırası:
                         <span className="font-medium"> Sıra no · ADI SOYADI · ATAMA BRANŞI · İLÇESİ · KURUM KODU · OKUL ADI · Görevlendirme Dönemi</span>
                     </p>
                 </div>
@@ -224,9 +212,10 @@ const SorumluUpload = ({ onSorumluListChange }) => {
                 <form onSubmit={handleUpload} className="space-y-4 max-w-md mx-auto">
                     <div>
                         <label className="block text-sm font-medium text-gray-600 mb-1">Excel Dosyası</label>
-                        <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <div className="flex justify-center px-6 pt-4 pb-5 border-2 border-gray-300 border-dashed rounded-md">
                             <div className="space-y-1 text-center">
-                                <ArrowUpTrayIcon className="mx-auto h-8 w-8 text-gray-400" />
+                                {/* İkon küçültüldü: h-10 → h-6 */}
+                                <ArrowUpTrayIcon className="mx-auto h-6 w-6 text-gray-400" />
                                 <div className="text-sm text-gray-600">
                                     <label
                                         htmlFor="file-upload"
@@ -251,7 +240,7 @@ const SorumluUpload = ({ onSorumluListChange }) => {
                     <button
                         type="submit"
                         disabled={status === 'uploading' || !file}
-                        className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2 text-sm"
+                        className="w-full py-2 px-4 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:bg-gray-400 flex items-center justify-center gap-2"
                     >
                         {status === 'uploading' ? (
                             <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Yükleniyor...</>
@@ -268,10 +257,11 @@ const SorumluUpload = ({ onSorumluListChange }) => {
         <div className="p-6 bg-white rounded-lg shadow-md max-w-6xl mx-auto">
             {renderContent()}
             {message && (
-                <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${status === 'error'
+                <div className={`mt-4 p-3 rounded-md text-sm flex items-start gap-2 ${
+                    status === 'error'
                         ? 'bg-red-50 border border-red-200 text-red-700'
                         : 'bg-green-50 border border-green-200 text-green-700'
-                    }`}>
+                }`}>
                     {status === 'error'
                         ? <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />
                         : <CheckCircleIcon className="h-4 w-4 flex-shrink-0 mt-0.5" />}

@@ -21,9 +21,7 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
             }));
             return;
         }
-
         setUiState(prev => ({ ...prev, [ilce]: { status: 'loading' } }));
-
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Oturum bulunamadı.');
@@ -36,139 +34,119 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                 },
                 body: JSON.stringify({ ilceAdi: ilce, koordinatorId }),
             });
-
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Atama başarısız.');
 
-            setUiState(prev => ({
-                ...prev,
-                [ilce]: { status: 'success', message: data.message },
-            }));
+            setUiState(prev => ({ ...prev, [ilce]: { status: 'success', message: data.message } }));
         } catch (error) {
-            setUiState(prev => ({
-                ...prev,
-                [ilce]: { status: 'error', message: error.message },
-            }));
+            setUiState(prev => ({ ...prev, [ilce]: { status: 'error', message: error.message } }));
         }
     };
 
     if (!districts || districts.length === 0) {
         return (
             <div className="p-6 bg-white rounded-lg shadow-md max-w-4xl mx-auto">
-                <h2 className="text-2xl font-bold mb-2">Görev Dağılımı Yönetimi</h2>
+                <h2 className="text-xl font-bold mb-2">Görev Dağılımı Yönetimi</h2>
                 <p className="text-gray-500 text-sm">İlçe verisi yüklenemedi.</p>
             </div>
         );
     }
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 bg-gray-50">
+        <div className="bg-gray-50 px-4">
             <div className="max-w-4xl mx-auto bg-white shadow-md rounded-lg">
                 <div className="p-6 border-b">
-                    <h2 className="text-2xl font-bold text-gray-900">Görev Dağılımı Yönetimi</h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        İzmir ilçelerini koordinatörlere atayın. Koordinatörü seçip
-                        "Kaydet" butonuna basın.
+                    <h2 className="text-xl font-bold text-gray-900">Görev Dağılımı Yönetimi</h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Her ilçe için koordinatör seçin ve "Kaydet" butonuna basın.
                     </p>
                     {coordinators.length === 0 && (
                         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
-                            ⚠️ Henüz koordinatör eklenmemiş. Önce yukarıdaki
-                            "Koordinatör Yönetimi" bölümünden koordinatör ekleyin.
+                            ⚠️ Henüz koordinatör eklenmemiş. Önce "2. Aşama: Koordinatör Yönetimi" sekmesinden koordinatör ekleyin.
                         </div>
                     )}
                 </div>
 
                 <div className="overflow-x-auto">
                     <table className="min-w-full">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-gray-50 border-b">
                             <tr>
-                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
-                                    İlçe (Sorumlu Sayısı)
+                                <th className="py-3 px-5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[35%]">
+                                    İlçe
                                 </th>
-                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                                <th className="py-3 px-5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[40%]">
                                     Atanacak Koordinatör
                                 </th>
-                                <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">
+                                <th className="py-3 px-5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[25%]">
                                     İşlem
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody className="divide-y divide-gray-100">
                             {districts.map(({ ilce_adi, sorumlu_count }) => {
                                 const state = uiState[ilce_adi];
-                                const isAssigned = !!initialAssignments?.[ilce_adi];
+                                const isAssigned = !!assignments[ilce_adi];
 
                                 return (
                                     <tr key={ilce_adi} className="hover:bg-gray-50">
-                                        {/* İlçe adı */}
-                                        <td className="py-3 px-6 whitespace-nowrap">
-                                            <span className="font-medium text-gray-800">
-                                                {ilce_adi}
-                                            </span>
-                                            <span className="ml-2 text-xs text-gray-400">
-                                                ({sorumlu_count} okul sorumlusu)
-                                            </span>
-                                            {isAssigned && (
-                                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">
-                                                    Atandı
+                                        {/* İlçe adı + sorumlu sayısı */}
+                                        <td className="py-2.5 px-5 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium text-gray-800">
+                                                    {ilce_adi}
                                                 </span>
-                                            )}
+                                                {/* Parantez içinde sorumlu sayısı — her zaman gösterilir */}
+                                                <span className="text-xs text-gray-400">
+                                                    ({sorumlu_count} okul sorumlusu)
+                                                </span>
+                                                {isAssigned && state?.status !== 'loading' && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 font-medium">
+                                                        Atandı
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
 
-                                        {/* Koordinatör seçimi */}
-                                        <td className="py-3 px-6">
+                                        {/* Koordinatör dropdown */}
+                                        <td className="py-2.5 px-5">
                                             <select
                                                 value={assignments[ilce_adi] || ''}
-                                                onChange={(e) =>
-                                                    handleAssignmentChange(ilce_adi, e.target.value)
-                                                }
+                                                onChange={(e) => handleAssignmentChange(ilce_adi, e.target.value)}
                                                 disabled={coordinators.length === 0}
-                                                className="w-full p-2 border rounded-md text-sm disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-indigo-500"
+                                                className="w-full p-1.5 border rounded-md text-sm disabled:bg-gray-100 disabled:text-gray-400 focus:ring-2 focus:ring-indigo-500"
                                             >
                                                 <option value="" disabled>
                                                     {coordinators.length === 0
-                                                        ? 'Önce koordinatör ekleyin'
+                                                        ? '— Koordinatör yok —'
                                                         : 'Koordinatör seçin...'}
                                                 </option>
                                                 {coordinators.map((c) => (
                                                     <option key={c.id} value={c.id}>
-                                                        {c.ad_soyad}
-                                                        {c.email ? ` (${c.email})` : ''}
+                                                        {c.ad_soyad}{c.email ? ` (${c.email})` : ''}
                                                     </option>
                                                 ))}
                                             </select>
                                         </td>
 
-                                        {/* Kaydet butonu + durum */}
-                                        <td className="py-3 px-6">
+                                        {/* Kaydet + durum */}
+                                        <td className="py-2.5 px-5">
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => handleSave(ilce_adi)}
-                                                    disabled={
-                                                        state?.status === 'loading' ||
-                                                        coordinators.length === 0
-                                                    }
-                                                    className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 whitespace-nowrap"
+                                                    disabled={state?.status === 'loading' || coordinators.length === 0}
+                                                    className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1 whitespace-nowrap"
                                                 >
                                                     {state?.status === 'loading' ? (
-                                                        <>
-                                                            <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                                                            Kaydediliyor...
-                                                        </>
-                                                    ) : (
-                                                        'Kaydet'
-                                                    )}
+                                                        <><ArrowPathIcon className="h-3 w-3 animate-spin" /> Kaydediliyor</>
+                                                    ) : 'Kaydet'}
                                                 </button>
 
                                                 {state?.status === 'success' && (
-                                                    <CheckCircleIcon
-                                                        className="h-5 w-5 text-green-500 flex-shrink-0"
-                                                        title={state.message}
-                                                    />
+                                                    <CheckCircleIcon className="h-4 w-4 text-green-500 flex-shrink-0" title={state.message} />
                                                 )}
                                                 {state?.status === 'error' && (
                                                     <span className="flex items-center gap-1 text-xs text-red-600">
-                                                        <ExclamationCircleIcon className="h-4 w-4 flex-shrink-0" />
+                                                        <ExclamationCircleIcon className="h-3.5 w-3.5 flex-shrink-0" />
                                                         {state.message}
                                                     </span>
                                                 )}
@@ -181,9 +159,11 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                     </table>
                 </div>
 
-                {/* Alt bilgi */}
-                <div className="p-4 border-t bg-gray-50 text-xs text-gray-400 text-right">
-                    Toplam {districts.length} ilçe · İzmir
+                <div className="p-3 border-t bg-gray-50 text-xs text-gray-400 flex justify-between items-center">
+                    <span>
+                        {districts.filter(d => assignments[d.ilce_adi]).length} / {districts.length} ilçe atandı
+                    </span>
+                    <span>İzmir · {districts.length} ilçe</span>
                 </div>
             </div>
         </div>
