@@ -108,20 +108,22 @@ export async function getServerSideProps(context) {
 
         // --- Veri Çekme ---
 
-        // 1. İlçe sayılarını verimli bir şekilde çek
-        const { data: districtsData, error: districtsError } = await supabaseAdmin
+        // 1. İlçe sayılarını büyük/küçük harfe duyarsız bir şekilde hesapla
+        // Veritabanındaki 'aliağa' ve 'Aliağa' gibi kayıtların doğru sayılması için tüm listeyi çekip JS'de saymak en güvenli yoldur.
+        const { data: allSorumlular, error: sorumlularError } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi, count(id)')
-            .group('ilce_adi');
-        if (districtsError) throw districtsError;
+            .select('ilce_adi');
+        if (sorumlularError) throw sorumlularError;
 
-        const sorumluCountMap = (districtsData || []).reduce((acc, d) => {
-            acc[d.ilce_adi] = d.count;
-            return acc;
-        }, {});
+        const sorumluCountMap = {};
+        for (const s of allSorumlular || []) {
+            const key = normalize(s.ilce_adi);
+            if (key) sorumluCountMap[key] = (sorumluCountMap[key] || 0) + 1;
+        }
+
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
-            sorumlu_count: sorumluCountMap[ilce_adi] || 0,
+            sorumlu_count: sorumluCountMap[normalize(ilce_adi)] || 0,
         }));
 
         // 2. Koordinatörleri çek
@@ -140,7 +142,12 @@ export async function getServerSideProps(context) {
         // --- Veri İşleme ---
         const initialAssignments = {};
         for (const assignment of (assignmentsData || [])) {
-            const ilceFromDb = assignment.okul_sorumlulari?.ilce_adi;
+            // Supabase'in bazen tekil ilişkiyi dizi olarak döndürme ihtimaline karşı kodu daha sağlam hale getir.
+            const sorumluData = Array.isArray(assignment.okul_sorumlulari)
+                ? assignment.okul_sorumlulari[0]
+                : assignment.okul_sorumlulari;
+
+            const ilceFromDb = sorumluData?.ilce_adi;
 
             if (ilceFromDb && assignment.koordinator_id) {
                 // Veritabanından gelen ilçe adını (örn: "aliağa") standart listedeki
