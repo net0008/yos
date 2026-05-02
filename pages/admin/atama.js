@@ -79,9 +79,32 @@ export async function getServerSideProps(context) {
             return coordinators || [];
         })();
 
-        const assignmentsPromise = supabaseAdmin
-            .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari(ilce_adi)');
+        // Karmaşık iç içe sorgu yerine iki basit sorgu kullanarak atamaları daha güvenilir bir şekilde çek.
+        const assignmentsPromise = (async () => {
+            const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
+                .from('koordinator_sorumluluklari')
+                .select('koordinator_id, sorumlu_id');
+            if (assignmentsErr) throw assignmentsErr;
+
+            const { data: sorumlularMapData, error: sorumlularMapErr } = await supabaseAdmin
+                .from('okul_sorumlulari')
+                .select('id, ilce_adi');
+            if (sorumlularMapErr) throw sorumlularMapErr;
+
+            const sorumluToDistrict = (sorumlularMapData || []).reduce((acc, row) => {
+                acc[row.id] = row.ilce_adi;
+                return acc;
+            }, {});
+
+            const initialAssignments = {};
+            for (const row of assignmentsRaw || []) {
+                const ilce = sorumluToDistrict[row.sorumlu_id];
+                if (ilce && row.koordinator_id && !initialAssignments[ilce]) {
+                    initialAssignments[ilce] = row.koordinator_id;
+                }
+            }
+            return initialAssignments;
+        })();
 
         const [
             districtsResult,
@@ -112,18 +135,9 @@ export async function getServerSideProps(context) {
         }
 
         // Atama verilerini işle
-        let initialAssignments = {};
-        if (assignmentsResult.status === 'fulfilled' && !assignmentsResult.value.error) {
-            const assignmentsData = assignmentsResult.value.data;
-            if (assignmentsData) {
-                for (const assignment of assignmentsData) {
-                    if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
-                        initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
-                    }
-                }
-            }
-        } else if (assignmentsResult.status === 'rejected' || assignmentsResult.value.error) {
-            console.error('Atama sayfası atama veri çekme hatası:', assignmentsResult.reason || assignmentsResult.value.error);
+        const initialAssignments = assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : {};
+        if (assignmentsResult.status === 'rejected') {
+            console.error('Atama sayfası atama veri çekme hatası:', assignmentsResult.reason);
         }
 
         return { props: { districts, coordinators, initialAssignments } };
