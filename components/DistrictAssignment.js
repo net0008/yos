@@ -1,26 +1,36 @@
 // components/DistrictAssignment.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
-// Sunucudan gelen yanıtı güvenle parse et.
-// HTML veya bozuk JSON gelirse anlamlı hata mesajı döner.
+// HTML veya bozuk JSON gelirse crash etme
 async function safeJson(response) {
     const text = await response.text();
     try {
-        return JSON.parse(text);
+        return { ok: response.ok, status: response.status, data: JSON.parse(text) };
     } catch {
         console.error('JSON parse hatası. Sunucu yanıtı:', text.slice(0, 300));
         return {
-            success: false,
-            message: `Sunucu geçersiz yanıt döndürdü (HTTP ${response.status}). Vercel loglarını kontrol edin.`,
+            ok: false,
+            status: response.status,
+            data: {
+                success: false,
+                message: `Sunucu geçersiz yanıt döndürdü (HTTP ${response.status}).`,
+            },
         };
     }
 }
 
 const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => {
+    // initialAssignments prop'u değiştiğinde state'i güncelle
     const [assignments, setAssignments] = useState(initialAssignments || {});
     const [uiState, setUiState] = useState({});
+
+    // Sayfa yenilendiğinde veya prop değiştiğinde dropdown'ları güncelle
+    useEffect(() => {
+        setAssignments(initialAssignments || {});
+        setUiState({});
+    }, [initialAssignments]);
 
     const handleAssignmentChange = (ilce, koordinatorId) => {
         setAssignments(prev => ({ ...prev, [ilce]: koordinatorId }));
@@ -40,7 +50,6 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
         setUiState(prev => ({ ...prev, [ilce]: { status: 'loading' } }));
 
         try {
-            // Session al
             const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
             if (sessionError || !sessionData?.session) {
                 throw new Error('Oturum bulunamadı. Lütfen tekrar giriş yapın.');
@@ -56,13 +65,14 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                 body: JSON.stringify({ ilceAdi: ilce, koordinatorId }),
             });
 
-            // response.json() yerine safeJson kullan
-            const data = await safeJson(response);
+            const { ok, data } = await safeJson(response);
 
-            if (!response.ok || !data.success) {
+            if (!ok || !data.success) {
                 throw new Error(data.message || `HTTP ${response.status} hatası.`);
             }
 
+            // Başarılı atamayı local state'e de yaz
+            setAssignments(prev => ({ ...prev, [ilce]: koordinatorId }));
             setUiState(prev => ({
                 ...prev,
                 [ilce]: { status: 'success', message: data.message },
@@ -86,7 +96,7 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
         );
     }
 
-    const atananSayisi = districts.filter(d => assignments[d.ilce_adi]).length;
+    const atananSayisi = Object.keys(assignments).filter(k => assignments[k]).length;
 
     return (
         <div className="bg-gray-50 px-4">
@@ -120,8 +130,8 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {districts.map(({ ilce_adi, sorumlu_count }) => {
-                                const state       = uiState[ilce_adi];
-                                const isAssigned  = !!assignments[ilce_adi];
+                                const state      = uiState[ilce_adi];
+                                const isAssigned = !!assignments[ilce_adi];
 
                                 return (
                                     <tr key={ilce_adi} className="hover:bg-gray-50">
@@ -136,12 +146,12 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                             </span>
                                             {isAssigned && state?.status !== 'loading' && (
                                                 <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 font-medium">
-                                                    Atandı
+                                                    Atandı ✓
                                                 </span>
                                             )}
                                         </td>
 
-                                        {/* Koordinatör seçimi */}
+                                        {/* Koordinatör dropdown */}
                                         <td className="py-2.5 px-5">
                                             <select
                                                 value={assignments[ilce_adi] || ''}
@@ -189,7 +199,6 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                                         title={state.message}
                                                     />
                                                 )}
-
                                                 {state?.status === 'error' && (
                                                     <span className="flex items-center gap-1 text-xs text-red-600 max-w-[160px]">
                                                         <ExclamationCircleIcon className="h-3.5 w-3.5 flex-shrink-0" />
@@ -206,7 +215,9 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                 </div>
 
                 <div className="p-3 border-t bg-gray-50 text-xs text-gray-400 flex justify-between">
-                    <span>{atananSayisi} / {districts.length} ilçe atandı</span>
+                    <span>
+                        {atananSayisi} / {districts.length} ilçe atandı
+                    </span>
                     <span>İzmir · {districts.length} ilçe</span>
                 </div>
             </div>

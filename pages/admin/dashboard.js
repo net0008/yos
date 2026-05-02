@@ -18,12 +18,8 @@ const IZMIR_ILCELERI = [
     'Seferihisar', 'Selçuk', 'Tire', 'Torbalı', 'Urla',
 ];
 
-// DB'deki ilce_adi değerlerinde büyük/küçük harf veya boşluk farkı olabilir.
-// Normalize ederek karşılaştır: trim + Türkçe lowercase
 const normalize = (str) =>
-    (str || '')
-        .trim()
-        .toLocaleLowerCase('tr-TR');
+    (str || '').trim().toLocaleLowerCase('tr-TR');
 
 export default function AdminDashboard({
     districts,
@@ -91,7 +87,6 @@ export default function AdminDashboard({
     return (
         <Layout title="Admin Paneli">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Yönetim Paneli</h1>
-
             <div className="mb-6 border-b border-gray-200">
                 <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
                     {tabs.map((tab) => (
@@ -109,7 +104,6 @@ export default function AdminDashboard({
                     ))}
                 </nav>
             </div>
-
             <div className="mt-4">{renderContent()}</div>
         </Layout>
     );
@@ -118,7 +112,6 @@ export default function AdminDashboard({
 export async function getServerSideProps(context) {
     const { req, res } = context;
 
-    // Oturum doğrulama
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -148,7 +141,6 @@ export async function getServerSideProps(context) {
         return { redirect: { destination: '/', permanent: false } };
     }
 
-    // Hata olursa boş veriyle yine de sayfayı göster
     const fallback = {
         districts: IZMIR_ILCELERI.map((ilce_adi) => ({ ilce_adi, sorumlu_count: 0 })),
         coordinators: [],
@@ -157,56 +149,27 @@ export async function getServerSideProps(context) {
     };
 
     try {
-        // ── 1. Sorumlu sayıları ──────────────────────────────────────────────
-        // Sadece ilce_adi çekiyoruz, JS tarafında grupluyoruz.
-        // (.group() Supabase JS client'ında mevcut değil)
-        const { data: allSorumlular, error: sorumluError } = await supabaseAdmin
+        // ── 1. Sorumlu sayıları ──────────────────────────────────────────
+        const { data: allSorumlular } = await supabaseAdmin
             .from('okul_sorumlulari')
             .select('ilce_adi');
 
-        if (sorumluError) {
-            console.error('Sorumlular çekilirken hata:', sorumluError.message);
-        }
-
-        // normalize(ilce_adi) → count  şeklinde bir map oluştur
-        // Bu sayede DB'de "aliağa", "ALIAĞA", " Aliağa " gibi yazılmış olsa bile eşleşir
         const sorumluCountMap = {};
         for (const s of allSorumlular || []) {
             const key = normalize(s.ilce_adi);
-            if (key) {
-                sorumluCountMap[key] = (sorumluCountMap[key] || 0) + 1;
-            }
+            if (key) sorumluCountMap[key] = (sorumluCountMap[key] || 0) + 1;
         }
 
-        // IZMIR_ILCELERI dizisindeki her ilçe için normalize edilmiş key ile say
         const districts = IZMIR_ILCELERI.map((ilce_adi) => ({
             ilce_adi,
             sorumlu_count: sorumluCountMap[normalize(ilce_adi)] || 0,
         }));
 
-        // DEBUG: Geliştirme ortamında eşleşmeyen ilçeleri logla
-        if (process.env.NODE_ENV !== 'production') {
-            const dbIlceler = [...new Set((allSorumlular || []).map(s => s.ilce_adi))];
-            const eslesmeyen = dbIlceler.filter(
-                dbIlce => !IZMIR_ILCELERI.some(i => normalize(i) === normalize(dbIlce))
-            );
-            if (eslesmeyen.length > 0) {
-                console.warn(
-                    'DB\'deki şu ilçe isimleri IZMIR_ILCELERI ile eşleşmiyor:',
-                    eslesmeyen
-                );
-            }
-        }
-
-        // ── 2. Koordinatörler ────────────────────────────────────────────────
-        const { data: profilesData, error: profilesError } = await supabaseAdmin
+        // ── 2. Koordinatörler ────────────────────────────────────────────
+        const { data: profilesData } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad')
             .eq('rol', 'koordinator');
-
-        if (profilesError) {
-            console.error('Koordinatör profilleri çekilirken hata:', profilesError.message);
-        }
 
         const coordinators = [];
         for (const p of profilesData || []) {
@@ -222,28 +185,52 @@ export async function getServerSideProps(context) {
             }
         }
 
-        // ── 3. Mevcut atamalar ───────────────────────────────────────────────
+        // ── 3. Mevcut atamalar ───────────────────────────────────────────
+        // Her ilçe için sadece bir koordinatör olacak.
+        // Strateji: koordinator_sorumluluklari + okul_sorumlulari join ile
+        // ilce bazında hangi koordinatör atanmış bul.
+        //
+        // Supabase'de nested select ile ilişkiyi çekiyoruz:
+        // koordinator_sorumluluklari → okul_sorumlulari (ilce_adi)
         const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, okul_sorumlulari(ilce_adi)');
+            .select(`
+                koordinator_id,
+                okul_sorumlulari (
+                    ilce_adi
+                )
+            `);
 
         if (assignmentsError) {
             console.error('Atamalar çekilirken hata:', assignmentsError.message);
         }
 
-        // { 'Aliağa': 'uuid' } — IZMIR_ILCELERI'ndeki canonical yazımı kullan
+        // { 'Aliağa': 'koordinator-uuid' } formatında map oluştur
+        // Her ilçe için ilk bulunan koordinatörü kullan
+        // (tüm sorumluların aynı koordinatöre atanmış olması gerekir)
         const initialAssignments = {};
-        for (const row of assignmentsData || []) {
-            const dbIlce = row.okul_sorumlulari?.ilce_adi;
-            if (!dbIlce || !row.koordinator_id) continue;
 
-            // DB'deki ilçe adını IZMIR_ILCELERI'ndeki canonical forma eşle
+        for (const row of assignmentsData || []) {
+            // okul_sorumlulari bazen array bazen object dönebilir
+            const ilceAdi = Array.isArray(row.okul_sorumlulari)
+                ? row.okul_sorumlulari[0]?.ilce_adi
+                : row.okul_sorumlulari?.ilce_adi;
+
+            if (!ilceAdi || !row.koordinator_id) continue;
+
+            // IZMIR_ILCELERI'ndeki canonical adı bul (büyük/küçük harf normalize)
             const canonical = IZMIR_ILCELERI.find(
-                i => normalize(i) === normalize(dbIlce)
+                (i) => normalize(i) === normalize(ilceAdi)
             );
-            const key = canonical || dbIlce; // eşleşmezse DB değerini kullan
-            initialAssignments[key] = row.koordinator_id;
+            const key = canonical || ilceAdi;
+
+            // Daha önce bu ilçe için bir atama yoksa ekle
+            if (!initialAssignments[key]) {
+                initialAssignments[key] = row.koordinator_id;
+            }
         }
+
+        console.log('initialAssignments:', JSON.stringify(initialAssignments, null, 2));
 
         return {
             props: {
