@@ -31,6 +31,7 @@ COMMENT ON TABLE public.okul_sorumlulari IS 'Admin tarafından Excel ile yüklen
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   ad_soyad TEXT,
+  email TEXT UNIQUE, -- Performans ve veri bütünlüğü için e-posta adresini buraya da ekliyoruz.
   rol TEXT NOT NULL CHECK (rol IN ('admin', 'koordinator'))
 );
 COMMENT ON TABLE public.profiles IS 'Sisteme giriş yapan admin ve koordinatörlerin rollerini ve ek bilgilerini tutar.';

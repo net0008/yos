@@ -97,7 +97,7 @@ async function handler(req, res) {
 
                     const { error: profileInsertError } = await supabaseAdmin
                         .from('profiles')
-                        .insert({ id: existingUser.id, ad_soyad: adSoyad, rol: 'koordinator' });
+                        .insert({ id: existingUser.id, ad_soyad: adSoyad, rol: 'koordinator', email: existingUser.email });
 
                     if (profileInsertError) {
                         console.error(`[CREATE-COORDINATOR] KRİTİK HATA: Yetim kullanıcı için profil oluşturulamadı.`, profileInsertError); // DIAGNOSTIC
@@ -133,7 +133,7 @@ async function handler(req, res) {
         console.log(`[CREATE-COORDINATOR] Adım 1a: Auth kullanıcısı başarıyla oluşturuldu (ID: ${authData.user.id}). Profil kaydı oluşturuluyor.`); // DIAGNOSTIC
         const { data: profileData, error: profileError } = await supabaseAdmin
             .from('profiles')
-            .insert({ id: authData.user.id, ad_soyad: adSoyad, rol: 'koordinator' })
+            .insert({ id: authData.user.id, ad_soyad: adSoyad, rol: 'koordinator', email: authData.user.email })
             .select()
             .single();
 

@@ -48,32 +48,14 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // --- Fetch ONLY coordinator data ---
-        const { data: profilesData, error: profilesError } = await supabaseAdmin
+        // --- Koordinatör verilerini verimli bir şekilde çek ---
+        // E-posta bilgisini de içeren profilleri tek bir sorguyla al.
+        // Bu, tüm auth kullanıcılarını çekme ihtiyacını ortadan kaldırır ve performansı büyük ölçüde artırır.
+        const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
             .from('profiles')
-            .select('id, ad_soyad')
+            .select('id, ad_soyad, email')
             .eq('rol', 'koordinator');
-        if (profilesError) throw profilesError;
-
-        const allAuthUsers = [];
-        let page = 1;
-        const perPage = 100;
-        while (true) {
-            const { data: { users: authUsersPage }, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-            if (usersError) throw usersError;
-            allAuthUsers.push(...authUsersPage);
-            if (authUsersPage.length < perPage) break;
-            page++;
-        }
-
-        const emailMap = allAuthUsers.reduce((acc, user) => {
-            acc[user.id] = user.email;
-            return acc;
-        }, {});
-
-        const coordinators = (profilesData || []).map(p => ({
-            id: p.id, ad_soyad: p.ad_soyad, email: emailMap[p.id] || 'E-posta bulunamadı',
-        }));
+        if (coordinatorsError) throw coordinatorsError;
 
         return { props: { coordinators } };
 
