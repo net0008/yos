@@ -25,6 +25,13 @@ const CoordinatorManagement = ({
         setCoordinators(initialCoordinators || []);
     }, [initialCoordinators]);
 
+    const sortedCoordinators = useMemo(() => {
+        // Sıralama yapmadan önce state'in kopyasını oluşturarak mutasyonu engelle
+        return [...coordinators].sort((a, b) =>
+            a.ad_soyad.localeCompare(b.ad_soyad, 'tr', { sensitivity: 'base' })
+        );
+    }, [coordinators]);
+
     const showMsg = (text, type = 'success') => {
         setMessage({ text, type });
         setTimeout(() => setMessage({ text: '', type: '' }), 5000);
@@ -162,12 +169,12 @@ const CoordinatorManagement = ({
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {coordinators.length === 0 ? (
+                        {sortedCoordinators.length === 0 ? (
                             <tr>
                                 <td colSpan={3} className="px-4 py-6 text-center text-sm text-gray-400">Henüz koordinatör yok.</td>
                             </tr>
                         ) : (
-                            coordinators.map((k) => (
+                            sortedCoordinators.map((k) => (
                                 <tr key={k.id}>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
