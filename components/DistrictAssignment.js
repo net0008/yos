@@ -1,6 +1,6 @@
 // components/DistrictAssignment.js
 import React, { useState } from 'react';
-import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon, ExclamationCircleIcon, ArrowPathIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { supabase } from '../lib/supabaseClient';
 
 const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => {
@@ -38,6 +38,36 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
             if (!response.ok) throw new Error(data.message || 'Atama başarısız.');
 
             setUiState(prev => ({ ...prev, [ilce]: { status: 'success', message: data.message } }));
+        } catch (error) {
+            setUiState(prev => ({ ...prev, [ilce]: { status: 'error', message: error.message } }));
+        }
+    };
+
+    const handleDelete = async (ilce) => {
+        if (!window.confirm(`"${ilce}" ilçesinin atamasını kaldırmak istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) return;
+
+        setUiState(prev => ({ ...prev, [ilce]: { status: 'loading' } }));
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error('Oturum bulunamadı.');
+
+            const response = await fetch('/api/delete-district-assignment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ ilceAdi: ilce }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Atama silinemedi.');
+
+            setAssignments(prev => {
+                const next = { ...prev };
+                delete next[ilce];
+                return next;
+            });
+            setUiState(prev => ({ ...prev, [ilce]: { status: 'success', message: 'Atama kaldırıldı.' } }));
         } catch (error) {
             setUiState(prev => ({ ...prev, [ilce]: { status: 'error', message: error.message } }));
         }
@@ -133,6 +163,17 @@ const DistrictAssignment = ({ districts, coordinators, initialAssignments }) => 
                                                         <><ArrowPathIcon className="h-3 w-3 animate-spin" /> Kaydediliyor</>
                                                     ) : 'Kaydet'}
                                                 </button>
+
+                                                {isAssigned && (
+                                                    <button
+                                                        onClick={() => handleDelete(ilce_adi)}
+                                                        disabled={state?.status === 'loading'}
+                                                        className="p-1.5 text-xs font-medium text-red-600 rounded-md hover:bg-red-100 disabled:text-gray-400 disabled:bg-transparent"
+                                                        title="Atamayı Kaldır"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
+                                                )}
 
                                                 {state?.status === 'success' && (
                                                     <CheckCircleIcon className="h-4 w-4 text-green-500 flex-shrink-0" title={state.message} />

@@ -100,27 +100,20 @@ export async function getServerSideProps(context) {
             id: p.id, ad_soyad: p.ad_soyad, email: emailMap[p.id] || '',
         }));
 
-
-        const { data: assignmentsRaw, error: assignmentsErr } = await supabaseAdmin
+        // Verimli atama sorgusu: İki ayrı tabloyu çekmek yerine JOIN'li bir sorgu kullan.
+        // Bu, sayfa yükleme süresini önemli ölçüde iyileştirir ve zaman aşımlarını önler.
+        const { data: assignmentsData, error: assignmentsErr } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select('koordinator_id, sorumlu_id');
+            .select('koordinator_id, okul_sorumlulari(ilce_adi)');
         if (assignmentsErr) throw assignmentsErr;
 
-        const { data: sorumlularMapData, error: sorumlularMapErr } = await supabaseAdmin
-            .from('okul_sorumlulari')
-            .select('id, ilce_adi');
-        if (sorumlularMapErr) throw sorumlularMapErr;
-
-        const sorumluToDistrict = (sorumlularMapData || []).reduce((acc, row) => {
-            acc[row.id] = row.ilce_adi;
-            return acc;
-        }, {});
-
+        // Gelen veriyi { 'İlçe Adı': 'koordinator_id' } formatına dönüştür.
         const initialAssignments = {};
-        for (const row of assignmentsRaw || []) {
-            const ilce = sorumluToDistrict[row.sorumlu_id];
-            if (ilce && row.koordinator_id && !initialAssignments[ilce]) {
-                initialAssignments[ilce] = row.koordinator_id;
+        if (assignmentsData) {
+            for (const assignment of assignmentsData) {
+                if (assignment.okul_sorumlulari?.ilce_adi && assignment.koordinator_id) {
+                    initialAssignments[assignment.okul_sorumlulari.ilce_adi] = assignment.koordinator_id;
+                }
             }
         }
 
