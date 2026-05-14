@@ -1,4 +1,3 @@
-// pages/koordinator/dashboard.js
 import Layout from '../../components/Layout';
 import CoordinatorDashboard from '../../components/CoordinatorDashboard';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
@@ -76,11 +75,6 @@ export async function getServerSideProps(context) {
         .from('raporlar')
         .select('*, okul_sorumlulari(ad_soyad, ilce_adi, okul_adi)')
         .in('sorumlu_id', sorumluIds);
-
-    if (reportsError) {
-        console.error('Raporlar çekilirken hata:', reportsError);
-        return { props: { reports: [] } };
-    }
 
     return { props: { reports: reportsData || [] } };
 }
