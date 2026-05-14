@@ -15,6 +15,8 @@ const SystemSettings = ({ donemler, onSave }) => {
     const [analizKriterleri, setAnalizKriterleri] = useState(['']);
     const [isLoading, setIsLoading] = useState(false);
     const [message, setMessage] = useState('');
+    const [savingSection, setSavingSection] = useState(null);
+    const [saveMessages, setSaveMessages] = useState({ gorevler: null, kriterler: null });
 
     // Seçili dönem değiştiğinde, o döneme ait ayarları veritabanından çek
     useEffect(() => {
@@ -23,6 +25,7 @@ const SystemSettings = ({ donemler, onSave }) => {
         const fetchSettings = async () => {
             setIsLoading(true);
             setMessage('');
+            setSaveMessages({ gorevler: null, kriterler: null });
 
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -76,33 +79,42 @@ const SystemSettings = ({ donemler, onSave }) => {
         setAnalizKriterleri(newKriterler);
     };
 
-    const handleSave = async () => {
-        setIsLoading(true);
-        setMessage('');
+    const handleSave = async (section) => {
+        setSavingSection(section);
+        setSaveMessages(prev => ({ ...prev, [section]: null }));
 
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session) {
-            setMessage('Hata: Oturum bilgisi alınamadı. Kaydetme işlemi başarısız.');
-            setIsLoading(false);
+            setSaveMessages(prev => ({ ...prev, [section]: { type: 'error', text: 'Hata: Oturum bilgisi alınamadı.' } }));
+            setSavingSection(null);
             return;
         }
         const token = session.access_token;
 
+        const cleanedKriterler = analizKriterleri.filter(k => k.trim() !== '');
+
         const settingsData = {
             donem: selectedDonem,
             gorev_tanimlari: gorevTanimlari,
-            analiz_kriterleri: analizKriterleri.filter(k => k.trim() !== ''), // Boş kriterleri gönderme
+            analiz_kriterleri: cleanedKriterler,
         };
 
-        // Dönen JSON yanıtını doğru yakalamak için düzeltildi
-        const result = await onSave(settingsData, token);
+        try {
+            const result = await onSave(settingsData, token);
 
-        if (!result.success) {
-            setMessage(`Hata: ${result.message || 'Bilinmeyen bir hata oluştu.'}`);
-        } else {
-            setMessage('Tüm ayarlar (Görevler ve Kriterler) başarıyla kaydedildi!');
+            if (!result.success) {
+                setSaveMessages(prev => ({ ...prev, [section]: { type: 'error', text: `Hata: ${result.message || 'Bilinmeyen bir hata oluştu.'}` } }));
+            } else {
+                setSaveMessages(prev => ({ ...prev, [section]: { type: 'success', text: 'Başarıyla kaydedildi!' } }));
+                setAnalizKriterleri(cleanedKriterler.length > 0 ? cleanedKriterler : ['']);
+                setTimeout(() => {
+                    setSaveMessages(prev => ({ ...prev, [section]: null }));
+                }, 4000);
+            }
+        } catch (err) {
+            setSaveMessages(prev => ({ ...prev, [section]: { type: 'error', text: 'Sunucu ile bağlantı kurulamadı.' } }));
         }
-        setIsLoading(false);
+        setSavingSection(null);
     };
 
     return (
@@ -115,11 +127,24 @@ const SystemSettings = ({ donemler, onSave }) => {
                     {donemler.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
             </div>
+            {isLoading && <p className="text-sm text-gray-500 mb-4">Ayarlar yükleniyor...</p>}
+            {message && <p className="text-sm text-red-600 mb-4">{message}</p>}
 
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
                 <label htmlFor="gorev-tanimlari" className="block text-lg font-bold text-gray-800 mb-2">1. Okul Sorumlusu Görev Tanımları</label>
                 <p className="text-sm text-gray-500 mb-2">Bu tanımlar, yapay zekanın raporu incelerken okul sorumlusunun asıl görevlerini bilmesini sağlar.</p>
                 <textarea id="gorev-tanimlari" rows="10" value={gorevTanimlari} onChange={(e) => setGorevTanimlari(e.target.value)} className="w-full p-2 border rounded-md" placeholder="Seçili dönem için görev tanımlarını buraya girin..."></textarea>
+
+                <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <button onClick={() => handleSave('gorevler')} disabled={savingSection !== null} className="px-4 py-2 text-white bg-indigo-600 font-medium rounded-md hover:bg-indigo-700 disabled:bg-gray-400">
+                        {savingSection === 'gorevler' ? 'Kaydediliyor...' : 'Görev Tanımlarını Kaydet'}
+                    </button>
+                    {saveMessages.gorevler && (
+                        <span className={`text-sm font-medium ${saveMessages.gorevler.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                            {saveMessages.gorevler.text}
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
@@ -134,14 +159,17 @@ const SystemSettings = ({ donemler, onSave }) => {
                     ))}
                 </div>
                 <button onClick={handleAddKriter} className="mt-2 flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"><PlusIcon className="h-4 w-4" />Yeni Kriter Ekle</button>
-            </div>
 
-            {/* Kaydet butonu her iki alanı kapsadığını belirtecek şekilde vurgulandı */}
-            <div className="mt-8 border-t pt-6">
-                <button onClick={handleSave} disabled={isLoading} className="w-full px-4 py-3 text-white bg-indigo-600 text-lg font-bold rounded-md hover:bg-indigo-700 disabled:bg-gray-400 shadow-md">
-                    {isLoading ? 'Kaydediliyor...' : 'Tüm Ayarları (Görevler ve Kriterler) Kaydet'}
-                </button>
-                {message && <p className={`mt-4 text-center font-medium ${message.startsWith('Hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
+                <div className="mt-4 border-t border-gray-200 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <button onClick={() => handleSave('kriterler')} disabled={savingSection !== null} className="px-4 py-2 text-white bg-indigo-600 font-medium rounded-md hover:bg-indigo-700 disabled:bg-gray-400">
+                        {savingSection === 'kriterler' ? 'Kaydediliyor...' : 'Analiz Kriterlerini Kaydet'}
+                    </button>
+                    {saveMessages.kriterler && (
+                        <span className={`text-sm font-medium ${saveMessages.kriterler.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                            {saveMessages.kriterler.text}
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     );
