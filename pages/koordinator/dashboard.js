@@ -1,13 +1,15 @@
+import React from 'react';
 import Layout from '../../components/Layout';
 import CoordinatorDashboard from '../../components/CoordinatorDashboard';
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { useRouter } from 'next/router';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
-export default function CoordinatorPanel({ reports }) {
+export default function CoordinatorDashboardPage({ reports }) {
     const router = useRouter();
 
+    // Rapor detayına (İncele) gitmek için yönlendirme fonksiyonu
     const handleReviewClick = (reportId) => {
         router.push(`/coordinator/${reportId}`);
     };
@@ -38,43 +40,44 @@ export async function getServerSideProps(context) {
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    if (userError || !user) {
+    if (!user) {
         return { redirect: { destination: '/auth/login', permanent: false } };
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
         .from('profiles')
         .select('rol')
         .eq('id', user.id)
         .single();
 
-    if (profileError || profile?.rol !== 'koordinator') {
-        return { redirect: { destination: '/auth/login', permanent: false } };
+    if (profile?.rol !== 'koordinator') {
+        return { redirect: { destination: '/', permanent: false } };
     }
 
-    const coordinatorId = user.id;
+    try {
+        // 1. Koordinatöre atanan okul sorumlularını bul
+        const { data: assignments } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('sorumlu_id')
+            .eq('koordinator_id', user.id);
 
-    // Koordinatöre atanan sorumluların ID'lerini al
-    const { data: assignedSorumlular, error: assignedError } = await supabaseAdmin
-        .from('koordinator_sorumluluklari')
-        .select('sorumlu_id')
-        .eq('koordinator_id', coordinatorId);
+        const sorumluIds = (assignments || []).map(a => a.sorumlu_id);
+        let reportsData = [];
 
-    if (assignedError || !assignedSorumlular) {
-        console.error('Atanmış sorumlular çekilirken hata:', assignedError);
+        if (sorumluIds.length > 0) {
+            // 2. Bu sorumlulara ait tüm raporları çek
+            const { data: reports } = await supabaseAdmin
+                .from('raporlar')
+                .select('id, status, donem, ay, created_at, okul_sorumlulari(ad_soyad, okul_adi, ilce_adi)')
+                .in('sorumlu_id', sorumluIds)
+                .order('created_at', { ascending: false });
+
+            if (reports) reportsData = reports;
+        }
+
+        return { props: { reports: reportsData } };
+    } catch (error) {
+        console.error('Koordinatör dashboard veri çekme hatası:', error.message);
         return { props: { reports: [] } };
     }
-
-    const sorumluIds = assignedSorumlular.map((s) => s.sorumlu_id);
-
-    if (sorumluIds.length === 0) {
-        return { props: { reports: [] } };
-    }
-
-    const { data: reportsData, error: reportsError } = await supabaseAdmin
-        .from('raporlar')
-        .select('*, okul_sorumlulari(ad_soyad, ilce_adi, okul_adi)')
-        .in('sorumlu_id', sorumluIds);
-
-    return { props: { reports: reportsData || [] } };
 }
