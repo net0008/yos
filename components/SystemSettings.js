@@ -47,8 +47,22 @@ const SystemSettings = ({ donemler, onSave }) => {
             if (response.ok && result.success) {
                 if (result.settings) {
                     setGorevTanimlari(result.settings.gorev_tanimlari || '');
-                    // Eğer veritabanından boş dizi [] gelirse, ekranda en az 1 input kutusu görünmesini sağla
-                    setAnalizKriterleri(result.settings.analiz_kriterleri?.length > 0 ? result.settings.analiz_kriterleri : ['']);
+
+                    let kriterlerArray = result.settings.analiz_kriterleri;
+                    // Veritabanından gelen verinin geçerli bir dizi olduğundan emin ol (farklı formatlarda kaydedilmişse kurtar)
+                    if (!Array.isArray(kriterlerArray)) {
+                        try {
+                            kriterlerArray = JSON.parse(kriterlerArray);
+                        } catch (e) {
+                            kriterlerArray = typeof kriterlerArray === 'string' && kriterlerArray.trim() !== '' ? [kriterlerArray] : [''];
+                        }
+                    }
+
+                    if (!Array.isArray(kriterlerArray) || kriterlerArray.length === 0) {
+                        kriterlerArray = [''];
+                    }
+
+                    setAnalizKriterleri(kriterlerArray);
                 } else {
                     // Eğer o dönem için ayar yoksa formu temizle
                     setGorevTanimlari('');

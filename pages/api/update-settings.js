@@ -7,6 +7,8 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
@@ -38,25 +40,48 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 'sistem_ayarlari' tablosuna toplu ekleme/güncelleme yap.
-        // 'onConflict: donem' sayesinde, eğer dönem zaten varsa günceller, değilse yeni kayıt ekler.
-        const { data, error } = await supabase
+        // Önce veritabanında bu dönemin (büyük/küçük harf fark etmeksizin) olup olmadığını kontrol et
+        const { data: allSettings, error: fetchError } = await supabase
             .from('sistem_ayarlari')
-            .upsert(
-                {
-                    donem: donem,
+            .select('id, donem');
+
+        if (fetchError) throw fetchError;
+
+        const targetDonemNormal = normalize(donem);
+        const existingSetting = (allSettings || []).find(s => normalize(s.donem) === targetDonemNormal);
+
+        let resultData, resultError;
+
+        if (existingSetting) {
+            // Kayıt zaten varsa UPDATE yap (ID'si üzerinden güvenli güncelleme)
+            const { data, error } = await supabase
+                .from('sistem_ayarlari')
+                .update({
                     gorev_tanimlari: gorev_tanimlari,
                     analiz_kriterleri: analiz_kriterleri,
-                },
-                {
-                    onConflict: 'donem',
-                }
-            )
-            .select();
+                    donem: donem.trim() // Formatı da düzeltmiş olalım
+                })
+                .eq('id', existingSetting.id)
+                .select();
+            resultData = data;
+            resultError = error;
+        } else {
+            // Kayıt yoksa INSERT yap
+            const { data, error } = await supabase
+                .from('sistem_ayarlari')
+                .insert({
+                    donem: donem.trim(),
+                    gorev_tanimlari: gorev_tanimlari,
+                    analiz_kriterleri: analiz_kriterleri,
+                })
+                .select();
+            resultData = data;
+            resultError = error;
+        }
 
-        if (error) throw error;
+        if (resultError) throw resultError;
 
-        return res.status(200).json({ success: true, message: `"${donem}" dönemi ayarları başarıyla kaydedildi.`, data });
+        return res.status(200).json({ success: true, message: `"${donem}" dönemi ayarları başarıyla kaydedildi.`, data: resultData });
 
     } catch (error) {
         console.error('Sistem ayarları API hatası:', error);

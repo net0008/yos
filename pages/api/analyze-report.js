@@ -20,20 +20,29 @@ async function getSystemSettings(donem) {
     if (!donem) {
         throw new Error("Analiz için dönem bilgisi alınamadı.");
     }
-    const { data, error } = await supabase
+
+    // Büyük/küçük harf eşleşmesi için tümünü çekip JS'de bul
+    const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
+    const { data: allSettings, error } = await supabase
         .from('sistem_ayarlari')
-        .select('gorev_tanimlari, analiz_kriterleri')
-        .eq('donem', donem)
-        .single();
+        .select('donem, gorev_tanimlari, analiz_kriterleri');
 
     if (error) {
         console.error(`'${donem}' için sistem ayarları çekilirken hata:`, error);
-        throw new Error(`'${donem}' dönemi için sistem ayarları bulunamadı veya veritabanından çekilemedi.`);
+        throw new Error(`Sistem ayarları veritabanından çekilemedi.`);
+    }
+
+    const targetDonemNormal = normalize(donem);
+    const matchedSetting = (allSettings || []).find(s => normalize(s.donem) === targetDonemNormal);
+
+    if (!matchedSetting) {
+        throw new Error(`'${donem}' dönemi için sistem ayarları bulunamadı.`);
     }
 
     return {
-        gorevler: data.gorev_tanimlari,
-        kriterler: data.analiz_kriterleri,
+        gorevler: matchedSetting.gorev_tanimlari,
+        kriterler: Array.isArray(matchedSetting.analiz_kriterleri) ? matchedSetting.analiz_kriterleri : [],
     };
 }
 
