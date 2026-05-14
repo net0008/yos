@@ -51,10 +51,10 @@ export default function AdminDashboard({
     };
 
     const tabs = [
-        { id: 'sorumlu',     name: '1. Aşama: Sorumlu Yönetimi' },
+        { id: 'sorumlu', name: '1. Aşama: Sorumlu Yönetimi' },
         { id: 'koordinator', name: '2. Aşama: Koordinatör Yönetimi' },
-        { id: 'atama',       name: '3. Aşama: Görev Dağılımı' },
-        { id: 'ayarlar',     name: '4. Aşama: Sistem Ayarları' },
+        { id: 'atama', name: '3. Aşama: Görev Dağılımı' },
+        { id: 'ayarlar', name: '4. Aşama: Sistem Ayarları' },
     ];
 
     const renderContent = () => {
@@ -93,11 +93,10 @@ export default function AdminDashboard({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`${
-                                activeTab === tab.id
+                            className={`${activeTab === tab.id
                                     ? 'border-indigo-500 text-indigo-600'
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                         >
                             {tab.name}
                         </button>
@@ -152,10 +151,12 @@ export async function getServerSideProps(context) {
         // ── 1. Sorumlu sayıları ──────────────────────────────────────────
         const { data: allSorumlular } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('ilce_adi');
+            .select('id, ilce_adi');
 
         const sorumluCountMap = {};
+        const sorumluMap = {}; // ID üzerinden ilçe adını bulmak için
         for (const s of allSorumlular || []) {
+            sorumluMap[s.id] = s.ilce_adi;
             const key = normalize(s.ilce_adi);
             if (key) sorumluCountMap[key] = (sorumluCountMap[key] || 0) + 1;
         }
@@ -186,35 +187,19 @@ export async function getServerSideProps(context) {
         }
 
         // ── 3. Mevcut atamalar ───────────────────────────────────────────
-        // Her ilçe için sadece bir koordinatör olacak.
-        // Strateji: koordinator_sorumluluklari + okul_sorumlulari join ile
-        // ilce bazında hangi koordinatör atanmış bul.
-        //
-        // Supabase'de nested select ile ilişkiyi çekiyoruz:
-        // koordinator_sorumluluklari → okul_sorumlulari (ilce_adi)
         const { data: assignmentsData, error: assignmentsError } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
-            .select(`
-                koordinator_id,
-                okul_sorumlulari (
-                    ilce_adi
-                )
-            `);
+            .select('koordinator_id, sorumlu_id');
 
         if (assignmentsError) {
             console.error('Atamalar çekilirken hata:', assignmentsError.message);
         }
 
-        // { 'Aliağa': 'koordinator-uuid' } formatında map oluştur
-        // Her ilçe için ilk bulunan koordinatörü kullan
-        // (tüm sorumluların aynı koordinatöre atanmış olması gerekir)
         const initialAssignments = {};
 
         for (const row of assignmentsData || []) {
-            // okul_sorumlulari bazen array bazen object dönebilir
-            const ilceAdi = Array.isArray(row.okul_sorumlulari)
-                ? row.okul_sorumlulari[0]?.ilce_adi
-                : row.okul_sorumlulari?.ilce_adi;
+            // Alt sorgu yerine hafızadaki sorumluMap üzerinden ilçeyi buluyoruz
+            const ilceAdi = sorumluMap[row.sorumlu_id];
 
             if (!ilceAdi || !row.koordinator_id) continue;
 

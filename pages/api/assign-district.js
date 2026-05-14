@@ -10,7 +10,7 @@ export default async function handler(req, res) {
         }
 
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
         if (!supabaseUrl || !serviceKey) {
             return res.status(500).json({ message: 'Sunucu env vars eksik.' });
@@ -49,18 +49,18 @@ export default async function handler(req, res) {
         }
 
         // Body
-        const ilceAdi      = String(req.body?.ilceAdi      || '').trim();
+        const ilceAdi = String(req.body?.ilceAdi || '').trim();
         const koordinatorId = String(req.body?.koordinatorId || '').trim();
 
         if (!ilceAdi || !koordinatorId) {
             return res.status(400).json({ message: 'ilceAdi ve koordinatorId zorunludur.' });
         }
 
-        // İlçedeki sorumlular — ilike ile büyük/küçük harf farkını yok say
+        // İlçedeki sorumlular — eq ile tam eşleşme ara (ilike Türkçe karakterlerde sorun yaratabilir)
         const { data: sorumlular, error: sorumluError } = await supabase
             .from('okul_sorumlulari')
             .select('id')
-            .ilike('ilce_adi', ilceAdi);
+            .eq('ilce_adi', ilceAdi);
 
         if (sorumluError) {
             return res.status(500).json({
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
         // Upsert
         const assignments = sorumlular.map((s) => ({
             koordinator_id: koordinatorId,
-            sorumlu_id:     s.id,
+            sorumlu_id: s.id,
         }));
 
         const { error: upsertError } = await supabase
