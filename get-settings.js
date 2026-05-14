@@ -1,6 +1,9 @@
 // pages/api/get-settings.js
 import { createClient } from '@supabase/supabase-js';
 
+// Türkçe karakterleri doğru küçültmek için yardımcı fonksiyon
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -37,17 +40,19 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { data, error } = await supabaseAdmin
+        // Veritabanındaki tüm ayarları çek ve JS'de eşleştir (Büyük/küçük harf ve boşluk sorunlarını çözer)
+        const { data: allSettings, error } = await supabaseAdmin
             .from('sistem_ayarlari')
-            .select('gorev_tanimlari, analiz_kriterleri')
-            .eq('donem', donem)
-            .single();
+            .select('donem, gorev_tanimlari, analiz_kriterleri');
 
-        if (error && error.code !== 'PGRST116') { // PGRST116: No rows found, bu bir hata değil.
+        if (error) {
             throw error;
         }
 
-        return res.status(200).json({ success: true, settings: data });
+        const targetDonemNormal = normalize(donem);
+        const matchedSetting = (allSettings || []).find(s => normalize(s.donem) === targetDonemNormal);
+
+        return res.status(200).json({ success: true, settings: matchedSetting || null });
 
     } catch (error) {
         console.error('Sistem ayarları çekme API hatası:', error);
