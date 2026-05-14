@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { withAuth } from '../../lib/withAuth';
 
+// Türkçe karakterleri doğru küçültmek için yardımcı fonksiyon
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
@@ -12,14 +15,16 @@ async function handler(req, res) {
             return res.status(400).json({ message: 'İlçe adı zorunludur.' });
         }
 
-        const { data: sorumlular, error: sErr } = await supabaseAdmin
+        const { data: allSorumlular, error: sErr } = await supabaseAdmin
             .from('okul_sorumlulari')
-            .select('id')
-            .ilike('ilce_adi', ilceAdi);
+            .select('id, ilce_adi');
 
         if (sErr) throw sErr;
 
-        const ids = (sorumlular || []).map((s) => s.id);
+        const targetIlceNormal = normalize(ilceAdi);
+        const ids = (allSorumlular || [])
+            .filter(s => normalize(s.ilce_adi) === targetIlceNormal)
+            .map((s) => s.id);
 
         if (ids.length > 0) {
             const { error: dErr } = await supabaseAdmin

@@ -1,6 +1,9 @@
 // pages/api/assign-district.js
 import { createClient } from '@supabase/supabase-js';
 
+// Türkçe karakterleri doğru küçültmek için yardımcı fonksiyon
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 export default async function handler(req, res) {
     res.setHeader('Content-Type', 'application/json');
 
@@ -56,17 +59,20 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'ilceAdi ve koordinatorId zorunludur.' });
         }
 
-        // İlçedeki sorumlular — eq ile tam eşleşme ara (ilike Türkçe karakterlerde sorun yaratabilir)
-        const { data: sorumlular, error: sorumluError } = await supabase
+        // İlçedeki sorumluları çekip JS'de eşleştir (Veritabanındaki büyük/küçük harf sorunlarını %100 çözer)
+        const { data: allSorumlular, error: sorumluError } = await supabase
             .from('okul_sorumlulari')
-            .select('id')
-            .eq('ilce_adi', ilceAdi);
+            .select('id, ilce_adi');
 
         if (sorumluError) {
             return res.status(500).json({
                 message: `Sorumlular sorgulanırken hata: ${sorumluError.message}`,
             });
         }
+
+        // Hedef ilçeyi standartlaştır ve eşleşenleri filtrele
+        const targetIlceNormal = normalize(ilceAdi);
+        const sorumlular = (allSorumlular || []).filter(s => normalize(s.ilce_adi) === targetIlceNormal);
 
         if (!sorumlular || sorumlular.length === 0) {
             return res.status(200).json({
