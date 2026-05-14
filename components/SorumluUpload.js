@@ -141,20 +141,6 @@ const SorumluUpload = () => {
                                     ({sorumlular.length} kişi · {Object.keys(ilceSayilari).length} ilçe)
                                 </span>
                             </h3>
-                            {/* İlçe bazında özet badge'ler */}
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                                {Object.entries(ilceSayilari)
-                                    .sort((a, b) => a[0].localeCompare(b[0], 'tr'))
-                                    .map(([ilce, sayi]) => (
-                                        <span
-                                            key={ilce}
-                                            className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-indigo-50 text-indigo-700 border border-indigo-100"
-                                        >
-                                            {ilce}
-                                            <span className="ml-1 font-bold bg-indigo-100 text-indigo-800 rounded px-1">{sayi}</span>
-                                        </span>
-                                    ))}
-                            </div>
                         </div>
                         <button
                             onClick={handleDeleteAll}
