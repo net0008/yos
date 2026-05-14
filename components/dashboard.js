@@ -1,4 +1,3 @@
-// pages/coordinator/dashboard.js
 import React from 'react';
 import Layout from '../../components/Layout';
 import CoordinatorDashboard from '../../components/CoordinatorDashboard';
@@ -10,7 +9,6 @@ import { serialize } from 'cookie';
 export default function CoordinatorDashboardPage({ reports }) {
     const router = useRouter();
 
-    // Rapor detayına (İncele) gitmek için yönlendirme fonksiyonu
     const handleReviewClick = (reportId) => {
         router.push(`/coordinator/${reportId}`);
     };
@@ -56,7 +54,6 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // 1. Koordinatöre atanan okul sorumlularını bul
         const { data: assignments } = await supabaseAdmin
             .from('koordinator_sorumluluklari')
             .select('sorumlu_id')
@@ -66,13 +63,11 @@ export async function getServerSideProps(context) {
         let reportsData = [];
 
         if (sorumluIds.length > 0) {
-            // 2. Bu sorumlulara ait tüm raporları çek
             const { data: reports } = await supabaseAdmin
                 .from('raporlar')
                 .select('id, status, donem, ay, created_at, okul_sorumlulari(ad_soyad, okul_adi, ilce_adi)')
                 .in('sorumlu_id', sorumluIds)
                 .order('created_at', { ascending: false });
-
             if (reports) reportsData = reports;
         }
 
