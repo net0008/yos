@@ -10,37 +10,39 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY // Sadece sunucu tarafında kullanılmalı
 );
 
+// Türkçe karakterleri doğru küçültmek için yardımcı fonksiyon
+const normalize = (str) => (str || '').trim().toLocaleLowerCase('tr-TR');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Sadece POST istekleri kabul edilir.' });
   }
 
-  const { ilce, adSoyad, kurumKodu } = req.body;
+  const { adSoyad, kurumKodu } = req.body;
 
-  if (!ilce || !adSoyad || !kurumKodu) {
+  if (!adSoyad || !kurumKodu) {
     return res.status(400).json({ message: 'Tüm alanlar doldurulmalıdır.' });
   }
 
   try {
+    // 1. Önce sadece Kurum Koduna göre kayıtları çek (Kurum kodu numerik olduğu için harf hatası olmaz)
     const { data, error } = await supabase
       .from('okul_sorumlulari')
       .select('id, ad_soyad')
-      .ilike('ilce_adi', ilce)
-      .eq('ad_soyad', adSoyad)
-      .eq('kurum_kodu', kurumKodu)
-      .single(); // Tek bir sonuç bekliyoruz
+      .eq('kurum_kodu', kurumKodu.trim());
 
-    if (error && error.code === 'PGRST116') { // No rows found
-      return res.status(404).json({ success: false, message: 'Girilen bilgilerle eşleşen bir kayıt bulunamadı. Lütfen bilgilerinizi kontrol ediniz.' });
-    } else if (error) {
+    if (error) {
       console.error('Supabase sorgu hatası:', error);
       return res.status(500).json({ success: false, message: 'Sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.' });
     }
 
-    if (data) {
-      return res.status(200).json({ success: true, sorumluId: data.id, adSoyad: data.ad_soyad });
+    // 2. Gelen kayıtlar arasında Ad Soyad eşleşmesini JS üzerinde tam güvenli olarak yap
+    const targetAdSoyadNormal = normalize(adSoyad);
+    const matchedRecord = (data || []).find(r => normalize(r.ad_soyad) === targetAdSoyadNormal);
+
+    if (matchedRecord) {
+      return res.status(200).json({ success: true, sorumluId: matchedRecord.id, adSoyad: matchedRecord.ad_soyad });
     } else {
-      // Bu duruma normalde PGRST116 hatası düşerdi, ancak ekstra kontrol
       return res.status(404).json({ success: false, message: 'Girilen bilgilerle eşleşen bir kayıt bulunamadı. Lütfen bilgilerinizi kontrol ediniz.' });
     }
 

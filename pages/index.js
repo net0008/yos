@@ -16,7 +16,7 @@ export default function Home() {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-4xl">
                     {/* Okul Sorumlusu Kartı */}
                     <div className="card flex flex-col items-center text-center p-8 border-t-4 border-t-indigo-500">
                         <div className="h-16 w-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-6 ring-8 ring-indigo-50/50">
@@ -27,24 +27,14 @@ export default function Home() {
                         <Link href="/sorumlu/upload" className="btn-primary w-full">Rapor Yükle</Link>
                     </div>
 
-                    {/* Koordinatör Kartı */}
-                    <div className="card flex flex-col items-center text-center p-8 border-t-4 border-t-emerald-500">
-                        <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-50/50">
-                            <ChartBarIcon className="h-8 w-8" />
-                        </div>
-                        <h2 className="heading-2 mb-3">Koordinatör</h2>
-                        <p className="text-slate-500 mb-8 flex-grow">Sorumlu olduğunuz okulların raporlarını AI analizleriyle inceleyin ve yönetin.</p>
-                        <Link href="/auth/login" className="btn-outline w-full !text-emerald-700 !border-emerald-200 hover:!bg-emerald-50">Koordinatör Girişi</Link>
-                    </div>
-
-                    {/* Admin Kartı */}
+                    {/* Yönetici (Admin & Koordinatör) Kartı */}
                     <div className="card flex flex-col items-center text-center p-8 border-t-4 border-t-slate-800">
                         <div className="h-16 w-16 bg-slate-100 text-slate-800 rounded-full flex items-center justify-center mb-6 ring-8 ring-slate-50/50">
                             <ShieldCheckIcon className="h-8 w-8" />
                         </div>
-                        <h2 className="heading-2 mb-3">Sistem Yöneticisi</h2>
-                        <p className="text-slate-500 mb-8 flex-grow">Kullanıcıları yönetin, görev dağılımlarını yapın ve sistem ayarlarını yapılandırın.</p>
-                        <Link href="/auth/login" className="btn-outline w-full !text-slate-700 hover:!bg-slate-100 hover:!border-slate-300">Admin Girişi</Link>
+                        <h2 className="heading-2 mb-3">Yönetici Girişi</h2>
+                        <p className="text-slate-500 mb-8 flex-grow">Koordinatörler ve Adminler için akıllı yönlendirme destekli rapor ve sistem yönetimi paneli.</p>
+                        <Link href="/auth/login" className="btn-outline w-full !text-slate-700 hover:!bg-slate-100 hover:!border-slate-300">Sisteme Giriş Yap</Link>
                     </div>
                 </div>
             </div>
