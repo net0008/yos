@@ -104,8 +104,8 @@ export default async function handler(req, res) {
       İSTENEN JSON ÇIKTI YAPISI:
       {
         "analiz_ozeti": "1-2 cümlelik genel bir özet.",
-        "genel_durum": "Tüm kriterler başarılı ise 'UYGUN', herhangi biri başarısız ise 'UYGUN DEĞİL' yaz.",
-        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'BAŞARILI' veya 'BAŞARISIZ'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'BAŞARISIZ' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
+        "genel_durum": "Tüm kriterler uygun ise 'UYGUN', herhangi biri uygun değil ise 'UYGUN DEĞİL' yaz.",
+        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen 'etkileşimli tahta hurdaya çıktı' gibi dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
@@ -139,7 +139,7 @@ export default async function handler(req, res) {
             finalStatus = 'onaylandi';
         } else if (analysisResult.genel_durum === 'UYGUN DEĞİL') {
             // Eğer genel durum uygun değilse, kontrol listesindeki başarısız maddeleri kontrol et
-            const failedItems = analysisResult.kontrol_listesi?.filter(item => item.durum === 'BAŞARISIZ' && item.hata_kodu);
+            const failedItems = analysisResult.kontrol_listesi?.filter(item => item.durum === 'UYGUN DEĞİL' && item.hata_kodu);
 
             if (failedItems && failedItems.length > 0) {
                 const firstFailedErrorCode = failedItems[0].hata_kodu; // İlk bulunan hata kodunu kullan

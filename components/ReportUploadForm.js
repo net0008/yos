@@ -17,6 +17,9 @@ const ReportUploadForm = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [verifiedSorumlu, setVerifiedSorumlu] = useState(null);
 
+    // Ay isimleri listesi
+    const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
     const handleVerify = async (e) => {
         e.preventDefault();
         setStatus('verifying');
@@ -126,8 +129,8 @@ const ReportUploadForm = () => {
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Ay</label>
                             <select value={ay} onChange={(e) => setAy(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                                    <option key={month} value={month}>{month}. Ay</option>
+                                {aylar.map((ayIsmi, index) => (
+                                    <option key={index + 1} value={index + 1}>{ayIsmi} ({index + 1}. Ay)</option>
                                 ))}
                             </select>
                         </div>

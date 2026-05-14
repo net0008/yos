@@ -68,7 +68,7 @@ const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
                             <ul className="space-y-3">
                                 {analysis.kontrol_listesi?.map((item, index) => (
                                     <li key={index} className="flex items-start">
-                                        {item.durum === 'BAŞARILI' ? (
+                                        {item.durum === 'UYGUN' ? (
                                             <CheckCircleIcon className="h-6 w-6 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
                                         ) : (
                                             <XCircleIcon className="h-6 w-6 text-red-500 mr-3 mt-0.5 flex-shrink-0" />

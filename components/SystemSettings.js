@@ -163,7 +163,7 @@ const SystemSettings = ({ donemler, onSave }) => {
 
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
                 <h3 className="text-lg font-bold text-gray-800 mb-2">2. AI Rapor Analiz Kriterleri</h3>
-                <p className="text-sm text-gray-500 mb-4">Yapay zeka, raporu okurken buradaki kriterlerin her birini tek tek test edip 'Başarılı/Başarısız' kararı verir.</p>
+                <p className="text-sm text-gray-500 mb-4">Yapay zeka, raporu okurken buradaki kriterlerin her birini tek tek test edip 'UYGUN/UYGUN DEĞİL' kararı verir.</p>
                 <div className="space-y-2">
                     {analizKriterleri.map((kriter, index) => (
                         <div key={index} className="flex items-center gap-2">
