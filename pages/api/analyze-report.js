@@ -105,15 +105,19 @@ export default async function handler(req, res) {
       ---
     `;
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        // Gemini 1.5 Flash modeli daha performanslıdır ve doğrudan JSON çıktısını destekler.
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: {
+                responseMimeType: "application/json",
+            }
+        });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         let responseText = response.text();
         let analysisResult;
 
         try {
-            // AI'dan gelen yanıtı temizle ve JSON'a çevir
-            responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
             analysisResult = JSON.parse(responseText);
         } catch (jsonError) {
             console.error(`Rapor ID ${rapor_id} için AI'dan gelen JSON parse edilemedi. Yanıt:`, responseText);
