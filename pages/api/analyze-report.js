@@ -6,19 +6,12 @@ import pdf from 'pdf-parse';
 // Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Bu map, AI'dan gelen hata kodlarını doğrudan rapor durumlarına eşler.
-// AI'ın döndürdüğü hata kodları, veritabanındaki rapor_status ENUM değerleriyle uyumlu olmalıdır.
-const aiErrorToReportStatusMap = {
-    'İmza ve/veya mühür eksik': 'IMZA_MUHUR_EKSİK',
-    'Rapor formatı bozulmuş/hatalı format': 'FORMAT_HATALI',
-    'Eski format kullanılmış': 'ESKI_FORMAT',
-    'genel ifadeler kullanılmış': 'GENEL_IFADE',
-    'Bir bölüm boş bırakıldıysa': 'BOS_BOLUM_ACIKLAMA_YOK',
-    'üst kısmındaki bilgiler eksik/hatalı': 'UST_BILGI_EKSİK_HATALI',
-    'Onay tarihi eksik': 'ONAY_TARIHI_EKSİK',
-    'RAPOR_OKUNMUYOR': 'RAPOR_OKUNMUYOR' // Eğer AI PDF'i okuyamazsa bu kodu döndürebilir
-    // Diğer hata kodları buraya eklenebilir
-};
+// Geçerli hata kodları (Veritabanındaki rapor_status ENUM değerleri)
+const validErrorCodes = [
+    'IMZA_MUHUR_EKSİK', 'FORMAT_HATALI', 'ESKI_FORMAT',
+    'GENEL_IFADE', 'BOS_BOLUM_ACIKLAMA_YOK',
+    'UST_BILGI_EKSİK_HATALI', 'ONAY_TARIHI_EKSİK', 'RAPOR_OKUNMUYOR'
+];
 
 /**
  * Veritabanından Admin tarafından tanımlanmış dinamik ayarları çeker.
@@ -135,7 +128,7 @@ export default async function handler(req, res) {
 
             if (failedItems && failedItems.length > 0) {
                 const firstFailedErrorCode = failedItems[0].hata_kodu; // İlk bulunan hata kodunu kullan
-                finalStatus = aiErrorToReportStatusMap[firstFailedErrorCode] || 'reddedildi'; // Eşleşmezse reddedildi
+                finalStatus = validErrorCodes.includes(firstFailedErrorCode) ? firstFailedErrorCode : 'reddedildi'; // Eşleşmezse genel reddedildi
             } else {
                 finalStatus = 'reddedildi'; // Genel uygun değil ama belirli bir hata kodu yok
             }

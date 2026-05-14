@@ -127,7 +127,8 @@ export default async function handler(req, res) {
 
     // Sadece raporun ait olduğu ayın 5'inden sonra bu kontrolü yap
     // Veya, eğer rapor geçmiş bir aya aitse (örn: Mart raporu Nisan'da yüklendi)
-    const isAfterDeadline = (currentMonth === reportMonth && currentDay > 5) || (currentMonth > reportMonth);
+    // Yıl atlamalarını (Örn: Aralık raporunun Ocak ayında yüklenmesi) hesaba katmak için düzeltildi
+    const isAfterDeadline = (currentMonth === reportMonth && currentDay > 5) || (currentMonth !== reportMonth);
 
     if (isAfterDeadline) {
       // Yükleyen sorumlunun ilçe bilgisini al
