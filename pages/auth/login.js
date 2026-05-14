@@ -1,131 +1,103 @@
-// pages/auth/login.js
-import React, { useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
+import { supabase } from '../../lib/supabaseClient';
+import { ArrowRightOnRectangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
-export default function LoginPage() {
+export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState('');
+    const [errorMsg, setErrorMsg] = useState('');
+    const router = useRouter();
+
+    // Kullanıcı zaten giriş yapmışsa, onu rolüne göre direkt içeri al (login ekranında bekletme)
+    useEffect(() => {
+        const checkExistingSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('rol')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profile?.rol === 'admin') router.push('/admin/dashboard');
+                else if (profile?.rol === 'koordinator') router.push('/coordinator/dashboard');
+            }
+        };
+        checkExistingSession();
+    }, [router]);
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setMessage('');
+        setErrorMsg('');
 
-        // 1. Giriş yap
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        try {
+            // Supabase ile E-posta ve Şifre doğrulama
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
 
-        if (error) {
-            setMessage(`Giriş hatası: ${error.message}`);
-            setLoading(false);
-            return;
-        }
+            if (authError) throw authError;
 
-        if (!data.user) {
-            setMessage('Kullanıcı bilgisi alınamadı. Lütfen tekrar deneyin.');
-            setLoading(false);
-            return;
-        }
+            // Kullanıcının rolünü profil tablosundan kontrol et
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('rol')
+                .eq('id', authData.user.id)
+                .single();
 
-        // 2. Profil ve rol sorgula
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('rol')
-            .eq('id', data.user.id)
-            .single();
+            if (profileError) throw profileError;
 
-        if (profileError || !profile) {
-            console.error('Profil hatası:', profileError);
-            await supabase.auth.signOut();
-
-            if (profileError?.code === 'PGRST116') {
-                setMessage(
-                    'Profiliniz bulunamadı. ' +
-                    'Supabase Dashboard → profiles tablosuna kaydınızı ekleyin.'
-                );
+            // Başarılı giriş sonrası rol bazlı Akıllı Yönlendirme
+            if (profile.rol === 'admin') {
+                router.push('/admin/dashboard');
+            } else if (profile.rol === 'koordinator') {
+                router.push('/coordinator/dashboard');
             } else {
-                setMessage(
-                    `Profil okunamadı: ${profileError?.message || 'Bilinmeyen hata'}. ` +
-                    'RLS politikasını kontrol edin.'
-                );
+                setErrorMsg('Bilinmeyen veya yetkisiz kullanıcı rolü.');
+                await supabase.auth.signOut();
             }
-            setLoading(false);
-            return;
-        }
-
-        // 3. Tam sayfa yönlendirme — cookie'nin SSR tarafında görünmesi için
-        //    router.replace() değil window.location.href kullanıyoruz
-        if (profile.rol === 'admin') {
-            window.location.href = '/admin/dashboard';
-        } else if (profile.rol === 'koordinator') {
-            window.location.href = '/koordinator/dashboard';
-        } else {
-            await supabase.auth.signOut();
-            setMessage(`Bilinmeyen rol: "${profile.rol}". Erişim yetkiniz yok.`);
+        } catch (error) {
+            setErrorMsg(error.message === 'Invalid login credentials' ? 'E-posta veya şifre hatalı!' : error.message);
+        } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Layout title="Giriş Yap">
-            <div className="w-full max-w-sm mx-auto mt-10">
-                <form
-                    onSubmit={handleLogin}
-                    className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4"
-                >
-                    <div className="mb-4">
-                        <label
-                            className="block text-gray-700 text-sm font-bold mb-2"
-                            htmlFor="email"
-                        >
-                            E-posta
-                        </label>
-                        <input
-                            id="email"
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline disabled:bg-gray-100"
-                        />
+        <Layout title="Sisteme Giriş">
+            <div className="flex justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
+                <div className="card w-full max-w-md p-8 border-t-4 border-t-indigo-600">
+                    <div className="text-center mb-8">
+                        <h2 className="heading-2 mb-2">Yönetici Girişi</h2>
+                        <p className="text-sm text-slate-500">Admin veya Koordinatör bilgilerinizi giriniz.</p>
                     </div>
-                    <div className="mb-6">
-                        <label
-                            className="block text-gray-700 text-sm font-bold mb-2"
-                            htmlFor="password"
-                        >
-                            Parola
-                        </label>
-                        <input
-                            id="password"
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            disabled={loading}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline disabled:bg-gray-100"
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:bg-gray-400"
-                    >
-                        {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
-                    </button>
-                </form>
 
-                {message && (
-                    <div className="mt-2 p-3 rounded text-sm text-center bg-red-50 border border-red-200 text-red-700">
-                        {message}
-                    </div>
-                )}
+                    {errorMsg && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md text-center font-medium">
+                            {errorMsg}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleLogin} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">E-posta Adresi</label>
+                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="ornek@meb.gov.tr" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
+                            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="••••••••" />
+                        </div>
+
+                        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 mt-4">
+                            {loading ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Giriş Yapılıyor...</> : <><ArrowRightOnRectangleIcon className="h-5 w-5" /> Giriş Yap</>}
+                        </button>
+                    </form>
+                </div>
             </div>
         </Layout>
     );
