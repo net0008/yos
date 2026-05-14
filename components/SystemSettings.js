@@ -33,7 +33,8 @@ const SystemSettings = ({ donemler, onSave }) => {
             }
             const token = session.access_token;
 
-            const response = await fetch(`/api/get-settings?donem=${selectedDonem}`, {
+            // URL'deki boşluk karakterlerinin API'yi bozmasını engellemek için encodeURIComponent eklendi
+            const response = await fetch(`/api/get-settings?donem=${encodeURIComponent(selectedDonem)}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
@@ -43,7 +44,8 @@ const SystemSettings = ({ donemler, onSave }) => {
             if (response.ok && result.success) {
                 if (result.settings) {
                     setGorevTanimlari(result.settings.gorev_tanimlari || '');
-                    setAnalizKriterleri(result.settings.analiz_kriterleri || ['']);
+                    // Eğer veritabanından boş dizi [] gelirse, ekranda en az 1 input kutusu görünmesini sağla
+                    setAnalizKriterleri(result.settings.analiz_kriterleri?.length > 0 ? result.settings.analiz_kriterleri : ['']);
                 } else {
                     // Eğer o dönem için ayar yoksa formu temizle
                     setGorevTanimlari('');
@@ -92,12 +94,13 @@ const SystemSettings = ({ donemler, onSave }) => {
             analiz_kriterleri: analizKriterleri.filter(k => k.trim() !== ''), // Boş kriterleri gönderme
         };
 
-        const { error } = await onSave(settingsData, token);
+        // Dönen JSON yanıtını doğru yakalamak için düzeltildi
+        const result = await onSave(settingsData, token);
 
-        if (error) {
-            setMessage(`Hata: ${error.message}`);
+        if (!result.success) {
+            setMessage(`Hata: ${result.message || 'Bilinmeyen bir hata oluştu.'}`);
         } else {
-            setMessage('Ayarlar başarıyla kaydedildi!');
+            setMessage('Tüm ayarlar (Görevler ve Kriterler) başarıyla kaydedildi!');
         }
         setIsLoading(false);
     };
@@ -107,19 +110,21 @@ const SystemSettings = ({ donemler, onSave }) => {
             <h2 className="text-2xl font-bold mb-4">Sistem Ayarları Yönetimi</h2>
 
             <div className="mb-4">
-                <label htmlFor="donem-select" className="block text-sm font-medium text-gray-700 mb-1">Dönem Seçin</label>
+                <label htmlFor="donem-select" className="block text-sm font-medium text-gray-700 mb-1">Ayarların Geçerli Olacağı Dönem</label>
                 <select id="donem-select" value={selectedDonem} onChange={(e) => setSelectedDonem(e.target.value)} className="w-full p-2 border rounded-md">
                     {donemler.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
             </div>
 
-            <div className="mb-6">
-                <label htmlFor="gorev-tanimlari" className="block text-sm font-medium text-gray-700 mb-1">Okul Sorumlusu Görev Tanımları</label>
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+                <label htmlFor="gorev-tanimlari" className="block text-lg font-bold text-gray-800 mb-2">1. Okul Sorumlusu Görev Tanımları</label>
+                <p className="text-sm text-gray-500 mb-2">Bu tanımlar, yapay zekanın raporu incelerken okul sorumlusunun asıl görevlerini bilmesini sağlar.</p>
                 <textarea id="gorev-tanimlari" rows="10" value={gorevTanimlari} onChange={(e) => setGorevTanimlari(e.target.value)} className="w-full p-2 border rounded-md" placeholder="Seçili dönem için görev tanımlarını buraya girin..."></textarea>
             </div>
 
-            <div className="mb-6">
-                <h3 className="text-lg font-bold mb-2">AI Rapor Analiz Kriterleri</h3>
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+                <h3 className="text-lg font-bold text-gray-800 mb-2">2. AI Rapor Analiz Kriterleri</h3>
+                <p className="text-sm text-gray-500 mb-4">Yapay zeka, raporu okurken buradaki kriterlerin her birini tek tek test edip 'Başarılı/Başarısız' kararı verir.</p>
                 <div className="space-y-2">
                     {analizKriterleri.map((kriter, index) => (
                         <div key={index} className="flex items-center gap-2">
@@ -131,10 +136,13 @@ const SystemSettings = ({ donemler, onSave }) => {
                 <button onClick={handleAddKriter} className="mt-2 flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800"><PlusIcon className="h-4 w-4" />Yeni Kriter Ekle</button>
             </div>
 
-            <button onClick={handleSave} disabled={isLoading} className="w-full px-4 py-2 text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-gray-400">
-                {isLoading ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
-            </button>
-            {message && <p className={`mt-4 text-sm ${message.startsWith('Hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
+            {/* Kaydet butonu her iki alanı kapsadığını belirtecek şekilde vurgulandı */}
+            <div className="mt-8 border-t pt-6">
+                <button onClick={handleSave} disabled={isLoading} className="w-full px-4 py-3 text-white bg-indigo-600 text-lg font-bold rounded-md hover:bg-indigo-700 disabled:bg-gray-400 shadow-md">
+                    {isLoading ? 'Kaydediliyor...' : 'Tüm Ayarları (Görevler ve Kriterler) Kaydet'}
+                </button>
+                {message && <p className={`mt-4 text-center font-medium ${message.startsWith('Hata') ? 'text-red-600' : 'text-green-600'}`}>{message}</p>}
+            </div>
         </div>
     );
 };
