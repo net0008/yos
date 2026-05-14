@@ -1,7 +1,6 @@
 // pages/api/analyze-report.js
 import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import pdf from 'pdf-parse';
 
 // Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -77,13 +76,22 @@ export default async function handler(req, res) {
         if (downloadError) throw new Error(`PDF indirme hatası: ${downloadError.message}`);
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-        const pdfText = (await pdf(fileBuffer)).text;
+
+        // PDF'i doğrudan Gemini'a görsel ve metinsel (multimodal) analiz için base64 formatına çevir
+        const pdfBase64 = fileBuffer.toString('base64');
+        const pdfPart = {
+            inlineData: {
+                data: pdfBase64,
+                mimeType: "application/pdf"
+            }
+        };
 
         const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
 
         const prompt = `
       SENARYO: Sen, YEĞİTEK Okul Sorumluları tarafından yüklenen aylık faaliyet raporlarını denetleyen uzman bir denetçisin.
-      GÖREV: Sana metin olarak verilen PDF raporunu analiz et ve bulgularını sadece ve sadece istenen JSON formatında döndür. Başka hiçbir açıklama ekleme.
+      GÖREV: Sana yüklenen PDF dosyasını (hem metin hem de GÖRSEL olarak) analiz et ve bulgularını sadece ve sadece istenen JSON formatında döndür. Başka hiçbir açıklama ekleme.
+      ÖNEMLİ: Bu bir MULTIMODAL analizdir. PDF'in içindeki metinlerin yanı sıra belgenin sonundaki/üzerindeki ISLAK İMZA ve KURUM MÜHRÜNÜ görsel olarak incelemelisin. Eğer belgede imza veya mühür yoksa, kontrol listesinde bunu belirt ve 'IMZA_MUHUR_EKSİK' hata kodunu döndür.
       REFERANS BİLGİLERİ:
       1. Okul Sorumlusunun Resmi Görev Tanımları:
       ---
@@ -101,10 +109,6 @@ export default async function handler(req, res) {
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen 'etkileşimli tahta hurdaya çıktı' gibi dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
-      ANALİZ EDİLECEK RAPOR METNİ:
-      ---
-      ${pdfText}
-      ---
     `;
 
         // Gemini 1.5 Flash modeli daha performanslıdır ve doğrudan JSON çıktısını destekler.
@@ -114,7 +118,9 @@ export default async function handler(req, res) {
                 responseMimeType: "application/json",
             }
         });
-        const result = await model.generateContent(prompt);
+
+        // Prompt metni ile birlikte Multimodal PDF objesini modele gönderiyoruz
+        const result = await model.generateContent([prompt, pdfPart]);
         const response = await result.response;
         let responseText = response.text();
         let analysisResult;
