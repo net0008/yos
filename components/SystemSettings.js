@@ -36,8 +36,8 @@ const SystemSettings = ({ donemler, onSave }) => {
             }
             const token = session.access_token;
 
-            // URL'deki boşluk karakterlerinin API'yi bozmasını engellemek için encodeURIComponent eklendi
-            const response = await fetch(`/api/get-settings?donem=${encodeURIComponent(selectedDonem)}`, {
+            // Tarayıcı önbelleğini (cache) kırmak ve her zaman en güncel veriyi almak için timestamp (t) eklendi
+            const response = await fetch(`/api/get-settings?donem=${encodeURIComponent(selectedDonem)}&t=${Date.now()}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
