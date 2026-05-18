@@ -87,19 +87,27 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">No</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adı Soyadı</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Okul Adı</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçe</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rapor Dönemi</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durum</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sonuç</th>
                                     <th scope="col" className="relative px-6 py-3"><span className="sr-only">İncele</span></th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredReports.map((report) => {
+                                {filteredReports.map((report, index) => {
                                     const { text, color } = getStatusStyle(report.status);
+
+                                    // Yapay Zeka Sonucu (Örn: UYGUN, UYGUN DEĞİL)
+                                    const aiResult = report.ai_analiz_sonucu?.genel_durum;
+                                    const resultColor = aiResult === 'UYGUN' ? 'text-green-600 font-semibold' : (aiResult === 'UYGUN DEĞİL' ? 'text-red-600 font-semibold' : 'text-gray-400');
+
                                     return (
-                                        <tr key={report.id}>
+                                        <tr key={report.id} className="hover:bg-gray-50">
+                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.okul_sorumlulari.ad_soyad}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.okul_adi || '—'}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.ilce_adi}</td>
@@ -108,6 +116,9 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                                                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}>
                                                     {text}
                                                 </span>
+                                            </td>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${resultColor}`}>
+                                                {aiResult || '—'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button onClick={() => onReviewClick(report.id)} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1">

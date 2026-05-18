@@ -76,6 +76,7 @@ export async function getServerSideProps(context) {
                 ay,
                 status,
                 yuklenme_tarihi,
+                ai_analiz_sonucu,
                 okul_sorumlulari (
                     ad_soyad,
                     okul_adi,
