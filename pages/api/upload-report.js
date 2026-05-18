@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   const form = new IncomingForm({
     uploadDir: '/tmp', // Geçici yükleme dizini
     keepExtensions: true,
-    maxFileSize: 10 * 1024 * 1024, // 10MB maksimum dosya boyutu
+    maxFileSize: 5 * 1024 * 1024, // 5MB maksimum dosya boyutu
   });
 
   let tempFilePath = null;

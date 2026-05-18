@@ -146,7 +146,7 @@ const ReportUploadForm = () => {
                                         <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={(e) => setFile(e.target.files[0])} />
                                     </label>
                                 </div>
-                                <p className="text-sm font-medium text-slate-500 mt-2">{file ? <span className="font-bold text-indigo-600">{file.name}</span> : 'PDF formatında (Maks. 10MB)'}</p>
+                                <p className="text-sm font-medium text-slate-500 mt-2">{file ? <span className="font-bold text-indigo-600">{file.name}</span> : 'PDF formatında (Maks. 5MB)'}</p>
                             </div>
                         </div>
                     </div>
