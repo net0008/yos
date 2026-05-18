@@ -10,7 +10,7 @@ export default function CoordinatorDashboardPage({ reports }) {
     const router = useRouter();
 
     const handleReviewClick = (reportId) => {
-        router.push(`/coordinator/review/${reportId}`);
+        router.push(`/coordinator/${reportId}`);
     };
 
     return (

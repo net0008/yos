@@ -2,15 +2,28 @@
 import Layout from '../../components/Layout';
 import ReportReview from '../../components/ReportReview';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { supabase } from '../../lib/supabaseClient';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
 export default function ReportReviewPage({ report, pdfUrl }) {
+    // update-report-status API'si Authorization header bekliyor,
+    // bu yüzden client-side session'dan token alıp gönderiyoruz
     const handleUpdateStatus = async (reportId, status, correctionNote) => {
         try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                return { success: false, message: 'Oturum bulunamadı. Lütfen tekrar giriş yapın.' };
+            }
+
             const response = await fetch('/api/update-report-status', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
                 body: JSON.stringify({ reportId, status, correctionNote }),
             });
             return await response.json();
@@ -23,7 +36,7 @@ export default function ReportReviewPage({ report, pdfUrl }) {
         return (
             <Layout title="Rapor Bulunamadı">
                 <div className="flex items-center justify-center h-64 text-gray-500">
-                    Rapor bulunamadı veya erişim yetkiniz yok.
+                    Rapor bulunamadı veya bu rapora erişim yetkiniz yok.
                 </div>
             </Layout>
         );
@@ -74,7 +87,7 @@ export async function getServerSideProps(context) {
     }
 
     try {
-        // Raporu sorumlu bilgileriyle birlikte çek
+        // Raporu, sorumlu bilgileriyle birlikte çek
         const { data: report, error: reportError } = await supabaseAdmin
             .from('raporlar')
             .select(`
@@ -97,6 +110,7 @@ export async function getServerSideProps(context) {
             .single();
 
         if (reportError || !report) {
+            console.error('Rapor bulunamadı:', reportError?.message);
             return { props: { report: null, pdfUrl: null } };
         }
 
@@ -109,16 +123,22 @@ export async function getServerSideProps(context) {
             .single();
 
         if (!assignment) {
+            console.warn(`Koordinatör ${user.id} rapor ${reportId} için yetkisiz erişim denedi.`);
             return { redirect: { destination: '/coordinator/dashboard', permanent: false } };
         }
 
-        // PDF için imzalı URL oluştur (60 dakika geçerli)
+        // PDF için imzalı URL oluştur (1 saat geçerli)
         let pdfUrl = null;
         if (report.pdf_storage_path) {
-            const { data: signedUrlData } = await supabaseAdmin.storage
+            const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
                 .from('raporlar')
                 .createSignedUrl(report.pdf_storage_path, 3600);
-            pdfUrl = signedUrlData?.signedUrl || null;
+
+            if (signedUrlError) {
+                console.error('İmzalı URL oluşturulamadı:', signedUrlError.message);
+            } else {
+                pdfUrl = signedUrlData?.signedUrl || null;
+            }
         }
 
         return {
