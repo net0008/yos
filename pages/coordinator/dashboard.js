@@ -9,8 +9,10 @@ import { serialize } from 'cookie';
 export default function CoordinatorDashboardPage({ reports }) {
     const router = useRouter();
 
+    // [reportId].js yerine /coordinator/review?id=X kullanıyoruz
+    // Köşeli parantezli dosya adı bazı ortamlarda 404'e neden olduğu için
     const handleReviewClick = (reportId) => {
-        router.push(`/coordinator/${reportId}`);
+        router.push(`/coordinator/review?id=${reportId}`);
     };
 
     return (
