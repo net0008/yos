@@ -1,0 +1,134 @@
+// pages/coordinator/[reportId].js
+import Layout from '../../components/Layout';
+import ReportReview from '../../components/ReportReview';
+import { supabaseAdmin } from '../../lib/supabaseAdmin';
+import { createServerClient } from '@supabase/ssr';
+import { serialize } from 'cookie';
+
+export default function ReportReviewPage({ report, pdfUrl }) {
+    const handleUpdateStatus = async (reportId, status, correctionNote) => {
+        try {
+            const response = await fetch('/api/update-report-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportId, status, correctionNote }),
+            });
+            return await response.json();
+        } catch (error) {
+            return { success: false, message: error.message };
+        }
+    };
+
+    if (!report) {
+        return (
+            <Layout title="Rapor Bulunamadı">
+                <div className="flex items-center justify-center h-64 text-gray-500">
+                    Rapor bulunamadı veya erişim yetkiniz yok.
+                </div>
+            </Layout>
+        );
+    }
+
+    return (
+        <Layout title="Rapor İnceleme">
+            <ReportReview
+                report={report}
+                pdfUrl={pdfUrl}
+                onUpdateStatus={handleUpdateStatus}
+            />
+        </Layout>
+    );
+}
+
+export async function getServerSideProps(context) {
+    const { req, res, params } = context;
+    const { reportId } = params;
+
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        {
+            cookies: {
+                get: (name) => req.cookies[name],
+                set: (name, value, options) =>
+                    res.setHeader('Set-Cookie', serialize(name, value, options)),
+                remove: (name, options) =>
+                    res.setHeader('Set-Cookie', serialize(name, '', options)),
+            },
+        }
+    );
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+        return { redirect: { destination: '/auth/login', permanent: false } };
+    }
+
+    const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('rol')
+        .eq('id', user.id)
+        .single();
+
+    if (profile?.rol !== 'koordinator') {
+        return { redirect: { destination: '/', permanent: false } };
+    }
+
+    try {
+        // Raporu sorumlu bilgileriyle birlikte çek
+        const { data: report, error: reportError } = await supabaseAdmin
+            .from('raporlar')
+            .select(`
+                id,
+                donem,
+                ay,
+                status,
+                pdf_storage_path,
+                ai_analiz_sonucu,
+                koordinator_notu,
+                yuklenme_tarihi,
+                sorumlu_id,
+                okul_sorumlulari (
+                    ad_soyad,
+                    okul_adi,
+                    ilce_adi
+                )
+            `)
+            .eq('id', reportId)
+            .single();
+
+        if (reportError || !report) {
+            return { props: { report: null, pdfUrl: null } };
+        }
+
+        // Bu raporun koordinatörün sorumluluğunda olup olmadığını doğrula
+        const { data: assignment } = await supabaseAdmin
+            .from('koordinator_sorumluluklari')
+            .select('id')
+            .eq('koordinator_id', user.id)
+            .eq('sorumlu_id', report.sorumlu_id)
+            .single();
+
+        if (!assignment) {
+            return { redirect: { destination: '/coordinator/dashboard', permanent: false } };
+        }
+
+        // PDF için imzalı URL oluştur (60 dakika geçerli)
+        let pdfUrl = null;
+        if (report.pdf_storage_path) {
+            const { data: signedUrlData } = await supabaseAdmin.storage
+                .from('raporlar')
+                .createSignedUrl(report.pdf_storage_path, 3600);
+            pdfUrl = signedUrlData?.signedUrl || null;
+        }
+
+        return {
+            props: {
+                report,
+                pdfUrl,
+            },
+        };
+    } catch (error) {
+        console.error('Rapor inceleme sayfası veri çekme hatası:', error.message);
+        return { props: { report: null, pdfUrl: null } };
+    }
+}
