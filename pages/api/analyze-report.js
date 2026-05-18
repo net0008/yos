@@ -2,6 +2,11 @@
 import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Vercel'in varsayılan zaman aşımını (timeout) Gemini'nin uzun analizleri için 60 saniyeye çıkarıyoruz.
+export const config = {
+    maxDuration: 60,
+};
+
 // Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -60,6 +65,12 @@ export default async function handler(req, res) {
     // PDF yolu olmayan kayıtları (örn: RAPOR_GONDERILMEMIS) analiz etmeye çalışma.
     if (!rapor.pdf_storage_path) {
         return res.status(200).json({ success: true, message: 'Analiz için PDF dosyası bulunmadığından işlem atlandı.' });
+    }
+
+    // Supabase Webhook 'Update' işleminde de tetiklendiği için sonsuz döngüyü engellemeliyiz!
+    // Sadece durumu 'beklemede' olan (yeni yüklenmiş) raporları analiz et.
+    if (rapor.status !== 'beklemede') {
+        return res.status(200).json({ success: true, message: `Rapor durumu '${rapor.status}'. Sadece 'beklemede' olanlar analiz edilir.` });
     }
 
     const rapor_id = rapor.id;

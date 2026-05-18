@@ -86,7 +86,6 @@ export default async function handler(req, res) {
       .eq('sorumlu_id', sorumluId)
       .eq('donem', donem)
       .eq('ay', parseInt(ay, 10))
-      .eq('status', 'RAPOR_GONDERILMEMIS') // Sadece eksik olarak işaretlenmiş kaydı ara
       .single();
 
     let dbError;
