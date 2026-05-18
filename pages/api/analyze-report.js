@@ -163,7 +163,11 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error(`Rapor analizi API hatası (Rapor ID: ${rapor_id}):`, error);
-        await supabase.from('raporlar').update({ status: 'ai_analiz_hatasi' }).eq('id', rapor_id);
+        // Hata durumunda, hatanın nedenini veritabanına kaydederek koordinatörün görmesini sağla
+        await supabase.from('raporlar').update({
+            status: 'ai_analiz_hatasi',
+            koordinator_notu: `[SİSTEM] Analiz sırasında bir hata oluştu: ${error.message}`
+        }).eq('id', rapor_id);
         return res.status(500).json({ message: 'Rapor analizi sırasında bir sunucu hatası oluştu.', error: error.message });
     }
 }

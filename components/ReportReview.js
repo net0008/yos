@@ -13,7 +13,7 @@ import { useRouter } from 'next/router';
  */
 const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
     // `ai_analiz_sonucu` alanını daha kolay erişim için bir değişkene ata
-    const [correctionNote, setCorrectionNote] = useState('');
+    const [correctionNote, setCorrectionNote] = useState(report?.koordinator_notu || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState('');
     const router = useRouter();
