@@ -102,7 +102,18 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                                     const { text, color } = getStatusStyle(report.status);
 
                                     // Yapay Zeka Sonucu (Örn: UYGUN, UYGUN DEĞİL)
-                                    const aiResult = report.ai_analiz_sonucu?.genel_durum;
+                                    let aiResult = '—';
+                                    if (report.ai_analiz_sonucu) {
+                                        try {
+                                            const parsedAi = typeof report.ai_analiz_sonucu === 'string' ? JSON.parse(report.ai_analiz_sonucu) : report.ai_analiz_sonucu;
+                                            aiResult = parsedAi?.genel_durum || '—';
+                                        } catch (e) {
+                                            aiResult = 'Veri Hatası';
+                                        }
+                                    } else if (report.status === 'beklemede') {
+                                        aiResult = 'Analiz Bekliyor';
+                                    }
+
                                     const resultColor = aiResult === 'UYGUN' ? 'text-green-600 font-semibold' : (aiResult === 'UYGUN DEĞİL' ? 'text-red-600 font-semibold' : 'text-gray-400');
 
                                     return (
@@ -118,7 +129,7 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                                                 </span>
                                             </td>
                                             <td className={`px-6 py-4 whitespace-nowrap text-sm ${resultColor}`}>
-                                                {aiResult || '—'}
+                                                {aiResult}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <button onClick={() => onReviewClick(report.id)} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1">
