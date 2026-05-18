@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
     if (uploadError) {
       console.error('Supabase Storage yükleme hatası:', uploadError);
-      return res.status(500).json({ message: 'Dosya yüklenirken bir hata oluştu.' });
+      return res.status(500).json({ message: `Dosya yüklenirken bir hata oluştu: ${uploadError.message}. Supabase panelinden "raporlar" isimli bir Storage (Bucket) oluşturduğunuzdan emin olun.` });
     }
 
     // Raporun mevcut bir RAPOR_GONDERILMEMIS kaydı olup olmadığını kontrol et

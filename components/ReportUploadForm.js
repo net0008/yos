@@ -115,8 +115,8 @@ const ReportUploadForm = () => {
                 <form onSubmit={handleUpload} className="space-y-5 animate-fade-in">
                     <div className="p-3 bg-green-50 border border-green-200 rounded-md text-center">
                         <UserCircleIcon className="h-6 w-6 text-green-600 mx-auto mb-1" />
-                        <p className="font-semibold text-green-800">Merhaba, {verifiedSorumlu.adSoyad}</p>
-                        <p className="text-sm text-green-700">Kimliğiniz doğrulandı. Lütfen raporunuzu yükleyin.</p>
+                        <p className="text-lg font-semibold text-green-800">Merhaba, {verifiedSorumlu.adSoyad}</p>
+                        <p className="text-xl font-bold text-green-700 mt-2">Kimliğiniz doğrulandı. Lütfen raporunuzu yükleyin.</p>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -141,12 +141,12 @@ const ReportUploadForm = () => {
                             <div className="space-y-1 text-center">
                                 <ArrowUpTrayIcon className="mx-auto h-10 w-10 text-gray-400" />
                                 <div className="flex text-sm text-gray-600">
-                                    <label htmlFor="file-upload" className="relative cursor-pointer font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
+                                    <label htmlFor="file-upload" className="relative cursor-pointer text-xl font-bold text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                                         <span>Dosya seçin</span>
                                         <input id="file-upload" name="file-upload" type="file" className="sr-only" accept=".pdf" onChange={(e) => setFile(e.target.files[0])} />
                                     </label>
                                 </div>
-                                <p className="text-xs text-slate-500">{file ? <span className="font-semibold text-indigo-600">{file.name}</span> : 'PDF formatında (Maks. 10MB)'}</p>
+                                <p className="text-sm font-medium text-slate-500 mt-2">{file ? <span className="font-bold text-indigo-600">{file.name}</span> : 'PDF formatında (Maks. 10MB)'}</p>
                             </div>
                         </div>
                     </div>
