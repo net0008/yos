@@ -1,4 +1,3 @@
-// pages/coordinator/review/[reportId].js
 import Layout from '../../../components/Layout';
 import ReportReview from '../../../components/ReportReview';
 import { supabase } from '../../../lib/supabaseClient'; // Paylaşılan client-side istemci
@@ -89,7 +88,15 @@ export async function getServerSideProps(context) {
     // Raporu veritabanından çek
     const { data: reportData, error: reportError } = await supabaseAdmin
         .from('raporlar')
-        .select(`*, okul_sorumlulari(id, ilce_adi, ad_soyad, okul_adi)`)
+        .select(`
+            *,
+            okul_sorumlulari(
+                id,
+                ilce_adi,
+                ad_soyad,
+                okul_adi
+            )
+        `)
         .eq('id', reportId)
         .single();
 
@@ -99,13 +106,20 @@ export async function getServerSideProps(context) {
     }
 
     // --- Raporun Koordinatöre Ait Olup Olmadığını Kontrol Et ---
-    const { data: assignmentCheck, error: assignmentCheckError } = await supabaseAdmin.from('koordinator_sorumluluklari').select('id').eq('koordinator_id', coordinatorId).eq('sorumlu_id', reportData.sorumlu_id).single();
+    const { data: assignmentCheck, error: assignmentCheckError } = await supabaseAdmin
+        .from('koordinator_sorumluluklari')
+        .select('id')
+        .eq('koordinator_id', coordinatorId)
+        .eq('sorumlu_id', reportData.sorumlu_id)
+        .single();
+
     if (assignmentCheckError || !assignmentCheck) {
         console.error('Koordinatörün bu rapora erişim yetkisi yok:', assignmentCheckError);
         return { props: { report: null, pdfUrl: null } }; // Yetkisiz erişim
     }
     // --- Rapor Aitlik Kontrolü Sonu ---
 
+    // PDF için imzalı URL oluştur (geçici ve güvenli erişim için)
     const { data: signedUrlData } = await supabaseAdmin.storage.from('raporlar').createSignedUrl(reportData.pdf_storage_path, 3600); // 1 saat geçerli
 
     return { props: { report: reportData, pdfUrl: signedUrlData?.signedUrl || null } };
