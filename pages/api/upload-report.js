@@ -62,7 +62,11 @@ export default async function handler(req, res) {
     }
 
     // Supabase Storage'a yükleme
-    const storagePath = `raporlar/${sorumluId}/${donem}-${ay}-${Date.now()}.pdf`;
+    // Dosya yolunda (key) boşluk, nokta veya Türkçe karakter (ö, vb.) olmaması için metni güvenli hale getirelim:
+    const safeDonem = donem.replace(/[^a-zA-Z0-9-]/g, '_').replace(/_+/g, '_');
+
+    // Bucket zaten '.from("raporlar")' ile seçildiği için dosya yolunun başına tekrar 'raporlar/' yazmaya gerek yoktur.
+    const storagePath = `${sorumluId}/${safeDonem}-${ay}-${Date.now()}.pdf`;
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('raporlar') // Supabase Storage'da 'raporlar' adında bir bucket oluşturmanız gerekmektedir.
       .upload(storagePath, fileBuffer, {
