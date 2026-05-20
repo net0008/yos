@@ -54,7 +54,7 @@ export async function getServerSideProps(context) {
         const { data: coordinators, error: coordinatorsError } = await supabaseAdmin
             .from('profiles')
             .select('id, ad_soyad, email')
-            .eq('rol', 'koordinator');
+            .ilike('rol', 'koordinator');
         if (coordinatorsError) throw coordinatorsError;
 
         return { props: { coordinators } };

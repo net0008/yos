@@ -1,8 +1,8 @@
-// pages/coordinator/[reportId].js
-import Layout from '../../components/Layout';
-import ReportReview from '../../components/ReportReview';
-import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import { supabase } from '../../lib/supabaseClient';
+// pages/coordinator/review/[reportId].js
+import Layout from '../../../components/Layout';
+import ReportReview from '../../../components/ReportReview';
+import { supabaseAdmin } from '../../../lib/supabaseAdmin';
+import { supabase } from '../../../lib/supabaseClient';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
