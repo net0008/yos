@@ -11,19 +11,22 @@ export default function Login() {
     const [errorMsg, setErrorMsg] = useState('');
     const router = useRouter();
 
-    // Kullanıcı zaten giriş yapmışsa, onu rolüne göre direkt içeri al (login ekranında bekletme)
+    // Kullanıcı zaten giriş yapmışsa, rolüne göre direkt panele yönlendir
     useEffect(() => {
         const checkExistingSession = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('rol')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (profile?.rol === 'admin') router.push('/admin/dashboard');
-                else if (profile?.rol === 'koordinator') router.push('/coordinator/dashboard');
+                // Rol bilgisini API üzerinden güvenli şekilde al (service role kullanır)
+                try {
+                    const res = await fetch('/api/get-my-role', {
+                        headers: { Authorization: `Bearer ${session.access_token}` },
+                    });
+                    if (res.ok) {
+                        const { rol } = await res.json();
+                        if (rol === 'admin') router.replace('/admin/dashboard');
+                        else if (rol === 'koordinator') router.replace('/coordinator/dashboard');
+                    }
+                } catch (_) { /* sessizce geç */ }
             }
         };
         checkExistingSession();
@@ -35,7 +38,7 @@ export default function Login() {
         setErrorMsg('');
 
         try {
-            // Supabase ile E-posta ve Şifre doğrulama
+            // 1. Auth ile giriş yap
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -43,29 +46,39 @@ export default function Login() {
 
             if (authError) throw authError;
 
-            // Kullanıcının rolünü profil tablosundan kontrol et
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('rol')
-                .eq('id', authData.user.id)
-                .single();
+            // 2. Rolü API üzerinden al — bu API service_role key kullanır, RLS'yi atlar
+            const res = await fetch('/api/get-my-role', {
+                headers: { Authorization: `Bearer ${authData.session.access_token}` },
+            });
 
-            if (profileError) throw profileError;
+            const data = await res.json();
 
-            // Başarılı giriş sonrası rol bazlı Akıllı Yönlendirme
-            if (profile.rol === 'admin') {
-                router.push('/admin/dashboard');
-            } else if (profile.rol === 'koordinator') {
-                router.push('/coordinator/dashboard');
-            } else {
-                setErrorMsg('Bilinmeyen veya yetkisiz kullanıcı rolü.');
+            if (!res.ok) {
+                // Profil bulunamadı veya başka hata
                 await supabase.auth.signOut();
+                throw new Error(data.message || 'Kullanıcı profili bulunamadı. Sistem yöneticisiyle iletişime geçin.');
             }
+
+            // 3. Role göre yönlendir
+            if (data.rol === 'admin') {
+                router.replace('/admin/dashboard');
+            } else if (data.rol === 'koordinator') {
+                router.replace('/coordinator/dashboard');
+            } else {
+                await supabase.auth.signOut();
+                throw new Error('Bilinmeyen veya yetkisiz kullanıcı rolü.');
+            }
+
         } catch (error) {
-            setErrorMsg(error.message === 'Invalid login credentials' ? 'E-posta veya şifre hatalı!' : error.message);
-        } finally {
-            setLoading(false);
+            const msg = error.message;
+            setErrorMsg(
+                msg === 'Invalid login credentials'
+                    ? 'E-posta veya şifre hatalı!'
+                    : msg
+            );
+            setLoading(false); // Sadece hata durumunda burada durdur
         }
+        // NOT: Başarılı girişte loading=true kalır; yönlendirme tamamlanınca sayfa unmount olur
     };
 
     return (
@@ -86,15 +99,38 @@ export default function Login() {
                     <form onSubmit={handleLogin} className="space-y-5">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">E-posta Adresi</label>
-                            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="ornek@meb.gov.tr" />
+                            <input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="ornek@meb.gov.tr"
+                                disabled={loading}
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Şifre</label>
-                            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="••••••••" />
+                            <input
+                                type="password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                placeholder="••••••••"
+                                disabled={loading}
+                            />
                         </div>
 
-                        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 mt-4">
-                            {loading ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Giriş Yapılıyor...</> : <><ArrowRightOnRectangleIcon className="h-5 w-5" /> Giriş Yap</>}
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn-primary w-full flex items-center justify-center gap-2 mt-4"
+                        >
+                            {loading
+                                ? <><ArrowPathIcon className="h-5 w-5 animate-spin" /> Giriş Yapılıyor...</>
+                                : <><ArrowRightOnRectangleIcon className="h-5 w-5" /> Giriş Yap</>
+                            }
                         </button>
                     </form>
                 </div>

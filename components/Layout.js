@@ -17,30 +17,29 @@ const Layout = ({ children, title = 'YEĞİTEK Okul Sorumlusu Rapor İnceleme Si
     const [profile, setProfile] = useState(null);
 
     useEffect(() => {
-        supabase.auth.getSession().then(async ({ data: { session } }) => {
+        const fetchProfile = async (session) => {
+            if (!session?.access_token) { setProfile(null); return; }
+            try {
+                const res = await fetch('/api/get-my-role', {
+                    headers: { Authorization: `Bearer ${session.access_token}` },
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setProfile(data);
+                } else {
+                    setProfile(null);
+                }
+            } catch (_) { setProfile(null); }
+        };
+
+        supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            if (session?.user) {
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('ad_soyad, rol')
-                    .eq('id', session.user.id)
-                    .single();
-                setProfile(data);
-            }
+            fetchProfile(session);
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session);
-            if (session?.user) {
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('ad_soyad, rol')
-                    .eq('id', session.user.id)
-                    .single();
-                setProfile(data);
-            } else {
-                setProfile(null);
-            }
+            fetchProfile(session);
         });
 
         return () => subscription.unsubscribe();
