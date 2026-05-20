@@ -1,37 +1,49 @@
 // components/CoordinatorDashboard.js
 import React, { useState, useMemo } from 'react';
-import { MagnifyingGlassIcon, FunnelIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+    MagnifyingGlassIcon,
+    FunnelIcon,
+    DocumentMagnifyingGlassIcon,
+    SparklesIcon,
+    ArrowPathIcon,
+} from '@heroicons/react/24/outline';
+import { supabase } from '../lib/supabaseClient';
 
 /**
  * Rapor durumlarına göre renklendirme ve metin sağlayan yardımcı fonksiyon.
- * @param {string} status - Raporun durumu.
- * @returns {{text: string, color: string}} - Durum metni ve Tailwind CSS renk sınıfı.
  */
 const getStatusStyle = (status) => {
     const styles = {
-        onaylandi: { text: 'Onaylandı', color: 'bg-green-100 text-green-800' },
-        reddedildi: { text: 'Reddedildi', color: 'bg-red-100 text-red-800' },
-        koordinator_onayinda: { text: 'Onay Bekliyor', color: 'bg-blue-100 text-blue-800' },
-        ai_incelendi: { text: 'AI İnceliyor', color: 'bg-purple-100 text-purple-800' },
-        beklemede: { text: 'Yüklendi', color: 'bg-gray-100 text-gray-800' },
-        RAPOR_GONDERILMEMIS: { text: 'Rapor Gönderilmemiş', color: 'bg-red-200 text-red-900 font-bold' },
-        IMZA_MUHUR_EKSİK: { text: 'İmza/Mühür Eksik', color: 'bg-yellow-100 text-yellow-800' },
-        FORMAT_HATALI: { text: 'Format Hatalı', color: 'bg-yellow-100 text-yellow-800' },
-        // Diğer tüm durumlar için varsayılan stil
+        onaylandi:             { text: 'Onaylandı',          color: 'bg-green-100 text-green-800' },
+        reddedildi:            { text: 'Reddedildi',         color: 'bg-red-100 text-red-800' },
+        koordinator_onayinda:  { text: 'Onay Bekliyor',      color: 'bg-blue-100 text-blue-800' },
+        ai_incelendi:          { text: 'AI İnceliyor',        color: 'bg-purple-100 text-purple-800' },
+        beklemede:             { text: 'Yüklendi',           color: 'bg-gray-100 text-gray-800' },
+        duzeltme_istendi:      { text: 'Düzeltme İstendi',   color: 'bg-orange-100 text-orange-800' },
+        ai_analiz_hatasi:      { text: 'Analiz Hatası',      color: 'bg-red-100 text-red-700' },
+        RAPOR_GONDERILMEMIS:   { text: 'Rapor Gönderilmemiş', color: 'bg-red-200 text-red-900 font-bold' },
+        IMZA_MUHUR_EKSİK:      { text: 'İmza/Mühür Eksik',  color: 'bg-yellow-100 text-yellow-800' },
+        FORMAT_HATALI:         { text: 'Format Hatalı',      color: 'bg-yellow-100 text-yellow-800' },
+        ESKI_FORMAT:           { text: 'Eski Format',        color: 'bg-yellow-100 text-yellow-800' },
+        GENEL_IFADE:           { text: 'Genel İfade',        color: 'bg-yellow-100 text-yellow-800' },
+        BOS_BOLUM_ACIKLAMA_YOK:{ text: 'Boş Bölüm',         color: 'bg-yellow-100 text-yellow-800' },
+        UST_BILGI_EKSİK_HATALI:{ text: 'Üst Bilgi Eksik',   color: 'bg-yellow-100 text-yellow-800' },
+        ONAY_TARIHI_EKSİK:     { text: 'Onay Tarihi Eksik', color: 'bg-yellow-100 text-yellow-800' },
+        RAPOR_OKUNMUYOR:       { text: 'Rapor Okunamıyor',  color: 'bg-red-100 text-red-800' },
     };
-    const defaultStyle = { text: status, color: 'bg-gray-100 text-gray-800' };
-    return styles[status] || defaultStyle;
+    return styles[status] || { text: status, color: 'bg-gray-100 text-gray-800' };
 };
 
-/**
- * Koordinatörün ana panelini (dashboard) oluşturan React bileşeni.
- * @param {object} props - Bileşen propları.
- * @param {object[]} props.reports - Koordinatöre atanan tüm raporların listesi. Her rapor, sorumlu bilgilerini de içermelidir.
- * @param {function} props.onReviewClick - "İncele" butonuna tıklandığında çağrılacak fonksiyon.
- */
-const CoordinatorDashboard = ({ reports, onReviewClick }) => {
+// Analiz tetiklenebilir durumlar
+const canTriggerAnalysis = (status) =>
+    ['beklemede', 'ai_analiz_hatasi', 'duzeltme_istendi'].includes(status);
+
+const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
+    const [reports, setReports] = useState(initialReports);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [analyzingIds, setAnalyzingIds] = useState(new Set());
+    const [flashMsg, setFlashMsg] = useState('');
 
     const filteredReports = useMemo(() => {
         return reports.filter(report => {
@@ -39,20 +51,65 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                 report.okul_sorumlulari.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 report.okul_sorumlulari.okul_adi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 report.okul_sorumlulari.ilce_adi.toLowerCase().includes(searchTerm.toLowerCase());
-
             const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-
             return matchesSearch && matchesStatus;
         });
     }, [reports, searchTerm, statusFilter]);
 
-    // Filtreleme için mevcut tüm durumları raporlardan al
     const allStatuses = useMemo(() => [...new Set(reports.map(r => r.status))], [reports]);
+
+    const handleTriggerAnalysis = async (reportId) => {
+        setAnalyzingIds(prev => new Set(prev).add(reportId));
+        setFlashMsg('');
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) { setFlashMsg('Oturum bulunamadı.'); return; }
+
+            const res = await fetch('/api/trigger-analysis', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ reportId }),
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                // Yerel state'i güncelle: durumu 'ai_incelendi' yap
+                setReports(prev =>
+                    prev.map(r =>
+                        r.id === reportId ? { ...r, status: 'ai_incelendi' } : r
+                    )
+                );
+                setFlashMsg('✅ Analiz başlatıldı! 30-60 saniye sonra sayfayı yenileyin.');
+            } else {
+                setFlashMsg(`⚠️ ${data.message}`);
+            }
+        } catch (err) {
+            setFlashMsg(`❌ Hata: ${err.message}`);
+        } finally {
+            setAnalyzingIds(prev => {
+                const next = new Set(prev);
+                next.delete(reportId);
+                return next;
+            });
+            setTimeout(() => setFlashMsg(''), 8000);
+        }
+    };
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
             <div className="max-w-7xl mx-auto">
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Koordinatör Paneli</h1>
+
+                {/* Flash Mesaj */}
+                {flashMsg && (
+                    <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm rounded-lg font-medium">
+                        {flashMsg}
+                    </div>
+                )}
 
                 {/* Filtreleme ve Arama */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -93,52 +150,99 @@ const CoordinatorDashboard = ({ reports, onReviewClick }) => {
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">İlçe</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rapor Dönemi</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Durum</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sonuç</th>
-                                    <th scope="col" className="relative px-6 py-3"><span className="sr-only">İncele</span></th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI Sonucu</th>
+                                    <th scope="col" className="relative px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">İşlemler</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredReports.map((report, index) => {
-                                    const { text, color } = getStatusStyle(report.status);
+                                {filteredReports.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">
+                                            Gösterilecek rapor bulunamadı.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredReports.map((report, index) => {
+                                        const { text, color } = getStatusStyle(report.status);
+                                        const isAnalyzing = analyzingIds.has(report.id);
+                                        const showTrigger = canTriggerAnalysis(report.status);
 
-                                    // Yapay Zeka Sonucu (Örn: UYGUN, UYGUN DEĞİL)
-                                    let aiResult = '—';
-                                    if (report.ai_analiz_sonucu) {
-                                        try {
-                                            const parsedAi = typeof report.ai_analiz_sonucu === 'string' ? JSON.parse(report.ai_analiz_sonucu) : report.ai_analiz_sonucu;
-                                            aiResult = parsedAi?.genel_durum || '—';
-                                        } catch (e) {
-                                            aiResult = 'Veri Hatası';
+                                        // AI Sonucu
+                                        let aiResult = '—';
+                                        if (report.ai_analiz_sonucu) {
+                                            try {
+                                                const parsed = typeof report.ai_analiz_sonucu === 'string'
+                                                    ? JSON.parse(report.ai_analiz_sonucu)
+                                                    : report.ai_analiz_sonucu;
+                                                aiResult = parsed?.genel_durum || '—';
+                                            } catch { aiResult = 'Veri Hatası'; }
+                                        } else if (report.status === 'beklemede') {
+                                            aiResult = 'Bekliyor';
+                                        } else if (report.status === 'ai_incelendi') {
+                                            aiResult = 'İşleniyor…';
+                                        } else if (report.status === 'ai_analiz_hatasi') {
+                                            aiResult = 'Hata';
                                         }
-                                    } else if (report.status === 'beklemede') {
-                                        aiResult = 'Analiz Bekliyor';
-                                    }
 
-                                    const resultColor = aiResult === 'UYGUN' ? 'text-green-600 font-semibold' : (aiResult === 'UYGUN DEĞİL' ? 'text-red-600 font-semibold' : 'text-gray-400');
+                                        const resultColor =
+                                            aiResult === 'UYGUN' ? 'text-green-600 font-semibold' :
+                                            aiResult === 'UYGUN DEĞİL' ? 'text-red-600 font-semibold' :
+                                            aiResult === 'Hata' ? 'text-red-400' :
+                                            'text-gray-400';
 
-                                    return (
-                                        <tr key={report.id} className="hover:bg-gray-50">
-                                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{report.okul_sorumlulari.ad_soyad}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.okul_adi || '—'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{report.okul_sorumlulari.ilce_adi}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{`${report.donem} - ${report.ay}. Ay`}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}>
-                                                    {text}
-                                                </span>
-                                            </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${resultColor}`}>
-                                                {aiResult}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <button onClick={() => onReviewClick(report.id)} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1">
-                                                    <DocumentMagnifyingGlassIcon className="h-5 w-5" /> İncele
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                        return (
+                                            <tr key={report.id} className="hover:bg-gray-50">
+                                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                    {report.okul_sorumlulari.ad_soyad}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {report.okul_sorumlulari.okul_adi || '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {report.okul_sorumlulari.ilce_adi}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    {`${report.donem} - ${report.ay}. Ay`}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}>
+                                                        {text}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-6 py-4 whitespace-nowrap text-sm ${resultColor}`}>
+                                                    {aiResult}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {/* Analiz Başlat butonu — sadece uygun durumlarda göster */}
+                                                        {showTrigger && (
+                                                            <button
+                                                                onClick={() => handleTriggerAnalysis(report.id)}
+                                                                disabled={isAnalyzing}
+                                                                title="Yapay Zeka Analizini Başlat"
+                                                                className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {isAnalyzing
+                                                                    ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                                                                    : <SparklesIcon className="h-3.5 w-3.5" />
+                                                                }
+                                                                {isAnalyzing ? 'Başlatılıyor…' : 'Analiz Et'}
+                                                            </button>
+                                                        )}
+                                                        {/* İncele butonu */}
+                                                        <button
+                                                            onClick={() => onReviewClick(report.id)}
+                                                            className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1"
+                                                        >
+                                                            <DocumentMagnifyingGlassIcon className="h-5 w-5" /> İncele
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
                             </tbody>
                         </table>
                     </div>
