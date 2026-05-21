@@ -99,7 +99,7 @@ async function handler(req, res) {
 
         const model = genAI.getGenerativeModel({
             model: 'gemini-1.5-flash',
-            generationConfig: { responseMimeType: 'application/json' },
+            // responseMimeType + PDF inlineData Gemini v1'de çakışıyor, kaldırıldı
         });
 
         const result = await model.generateContent([prompt, pdfPart]);
@@ -107,7 +107,9 @@ async function handler(req, res) {
 
         let analysisResult;
         try {
-            analysisResult = JSON.parse(responseText);
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('Yanıtta JSON bloğu bulunamadı.');
+            analysisResult = JSON.parse(jsonMatch[0]);
         } catch {
             throw new Error('Yapay zeka yanıtı geçerli JSON formatında değil.');
         }

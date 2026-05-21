@@ -122,12 +122,10 @@ export default async function handler(req, res) {
       }
     `;
 
-        // Gemini 1.5 Flash modeli daha performanslıdır ve doğrudan JSON çıktısını destekler.
+        // responseMimeType + inlineData(PDF) Gemini v1'de 400 Bad Request veriyor.
+        // Bu nedenle mimeType olmadan çağırıp yanıttan JSON çıkarıyoruz.
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
-            generationConfig: {
-                responseMimeType: "application/json",
-            }
         });
 
         // Prompt metni ile birlikte Multimodal PDF objesini modele gönderiyoruz
@@ -137,10 +135,13 @@ export default async function handler(req, res) {
         let analysisResult;
 
         try {
-            analysisResult = JSON.parse(responseText);
+            // Yanıtta JSON bloğu dışında metin olabilir, regex ile çıkar
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('Yanıtta JSON bloğu bulunamadı.');
+            analysisResult = JSON.parse(jsonMatch[0]);
         } catch (jsonError) {
             console.error(`Rapor ID ${rapor_id} için AI'dan gelen JSON parse edilemedi. Yanıt:`, responseText);
-            throw new Error('Yapay zeka yanıtı geçerli bir formatta değil.');
+            throw new Error(`Yapay zeka yanıtı geçerli bir formatta değil: ${jsonError.message}`);
         }
 
         // --- Akıllı Durum Belirleme ---
