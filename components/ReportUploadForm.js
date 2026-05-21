@@ -162,6 +162,22 @@ const ReportUploadForm = () => {
                     <p className="text-sm text-red-700">{errorMessage}</p>
                 </div>
             )}
+
+            {/* Yükleme Animasyonu Overlay */}
+            {status === 'uploading' && (
+                <div className="fixed inset-0 bg-slate-900 bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
+                        <div className="relative mb-6">
+                            <div className="h-16 w-16 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+                            <ArrowUpTrayIcon className="h-6 w-6 text-indigo-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">Rapor Yükleniyor</h3>
+                        <p className="text-sm text-slate-500 text-center">
+                            Lütfen bekleyin, belgeniz güvenli bir şekilde sisteme aktarılıyor...
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

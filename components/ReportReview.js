@@ -29,6 +29,10 @@ const ReportReview = ({ report, pdfUrl, onUpdateStatus }) => {
             {/* Sol Taraf: PDF Görüntüleyici */}
             <div className="lg:w-1/2 xl:w-2/3 h-[90vh] flex flex-col">
                 <div className="mb-2">
+                    <button onClick={() => router.back()} className="text-indigo-600 hover:text-indigo-800 text-sm mb-2 flex items-center font-medium transition-colors">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                        Geri Dön
+                    </button>
                     <h2 className="text-xl font-bold text-gray-800">Rapor Önizleme</h2>
                     <p className="text-sm text-gray-600">
                         {report.okul_sorumlulari.ad_soyad} - {report.okul_sorumlulari.okul_adi || report.okul_sorumlulari.ilce_adi}
