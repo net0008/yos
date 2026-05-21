@@ -7,8 +7,10 @@ export const config = {
     maxDuration: 60,
 };
 
-// Gemini AI istemcisini başlatın (Ortam değişkenlerinde GEMINI_API_KEY tanımlı olmalıdır)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// Gemini AI istemcisini v1beta ile başlat — PDF (inlineData) desteği için zorunlu
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
+    apiVersion: 'v1beta',
+});
 
 // Geçerli hata kodları (Veritabanındaki rapor_status ENUM değerleri)
 const validErrorCodes = [
@@ -122,10 +124,9 @@ export default async function handler(req, res) {
       }
     `;
 
-        // responseMimeType + inlineData(PDF) Gemini v1'de 400 Bad Request veriyor.
-        // Bu nedenle mimeType olmadan çağırıp yanıttan JSON çıkarıyoruz.
+        // gemini-2.0-flash: v1beta endpoint + PDF inlineData destekli güncel model
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash",
+            model: 'gemini-2.0-flash',
         });
 
         // Prompt metni ile birlikte Multimodal PDF objesini modele gönderiyoruz

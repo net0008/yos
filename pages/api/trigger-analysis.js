@@ -9,7 +9,9 @@ import { withAuth } from '../../lib/withAuth';
 // Gemini için yeterli süre
 export const config = { maxDuration: 65 };
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
+    apiVersion: 'v1beta',
+});
 
 const validErrorCodes = [
     'IMZA_MUHUR_EKSİK', 'FORMAT_HATALI', 'ESKI_FORMAT',
@@ -98,8 +100,7 @@ async function handler(req, res) {
     `;
 
         const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            // responseMimeType + PDF inlineData Gemini v1'de çakışıyor, kaldırıldı
+            model: 'gemini-2.0-flash',
         });
 
         const result = await model.generateContent([prompt, pdfPart]);
