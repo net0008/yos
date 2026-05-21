@@ -77,13 +77,14 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
             const data = await res.json();
 
             if (res.ok) {
-                // Yerel state'i güncelle: durumu 'ai_incelendi' yap
+                // Analiz tamamlandı — gerçek sonucu state'e yaz
                 setReports(prev =>
                     prev.map(r =>
-                        r.id === reportId ? { ...r, status: 'ai_incelendi' } : r
+                        r.id === reportId ? { ...r, status: data.finalStatus } : r
                     )
                 );
-                setFlashMsg('✅ Analiz başlatıldı! 30-60 saniye sonra sayfayı yenileyin.');
+                const durum = data.genel_durum === 'UYGUN' ? '✅ UYGUN' : data.genel_durum === 'UYGUN DEĞİL' ? '⚠️ UYGUN DEĞİL' : '🔄 İnceleniyor';
+                setFlashMsg(`Analiz tamamlandı → ${durum}. Detay için "İncele" butonuna tıklayın.`);
             } else {
                 setFlashMsg(`⚠️ ${data.message}`);
             }
