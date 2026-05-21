@@ -1,14 +1,11 @@
 // pages/api/analyze-report.js
 import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import pdf from 'pdf-parse';
 
-// Vercel'in varsayılan zaman aşımını (timeout) Gemini'nin uzun analizleri için 60 saniyeye çıkarıyoruz.
+// Vercel'in varsayılan zaman aşımını 60 saniyeye çıkarıyoruz.
 export const config = {
     maxDuration: 60,
 };
-
-// Gemini AI istemcisini v1beta ile başlat — PDF (inlineData) desteği için zorunlu
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Geçerli hata kodları (Veritabanındaki rapor_status ENUM değerleri)
 const validErrorCodes = [
@@ -88,21 +85,20 @@ export default async function handler(req, res) {
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
-        // PDF'i doğrudan Gemini'a görsel ve metinsel (multimodal) analiz için base64 formatına çevir
-        const pdfBase64 = fileBuffer.toString('base64');
-        const pdfPart = {
-            inlineData: {
-                data: pdfBase64,
-                mimeType: "application/pdf"
-            }
-        };
+        // PDF'in içindeki metni pdf-parse ile çıkarıyoruz
+        let pdfText = '';
+        try {
+            const pdfData = await pdf(fileBuffer);
+            pdfText = pdfData.text;
+        } catch (err) {
+            throw new Error('PDF okunamadı veya bozuk: ' + err.message);
+        }
 
         const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
 
         const prompt = `
       SENARYO: Sen, YEĞİTEK Okul Sorumluları tarafından yüklenen aylık faaliyet raporlarını denetleyen uzman bir denetçisin.
-      GÖREV: Sana yüklenen PDF dosyasını (hem metin hem de GÖRSEL olarak) analiz et ve bulgularını sadece ve sadece istenen JSON formatında döndür. Başka hiçbir açıklama ekleme.
-      ÖNEMLİ: Bu bir MULTIMODAL analizdir. PDF'in içindeki metinlerin yanı sıra belgenin sonundaki/üzerindeki ISLAK İMZA ve KURUM MÜHRÜNÜ görsel olarak incelemelisin. Eğer belgede imza veya mühür yoksa, kontrol listesinde bunu belirt ve 'IMZA_MUHUR_EKSİK' hata kodunu döndür.
+      GÖREV: Sana verilen rapor metnini analiz et ve bulgularını sadece JSON formatında döndür.
       REFERANS BİLGİLERİ:
       1. Okul Sorumlusunun Resmi Görev Tanımları:
       ---
@@ -116,20 +112,37 @@ export default async function handler(req, res) {
       {
         "analiz_ozeti": "1-2 cümlelik genel bir özet.",
         "genel_durum": "Tüm kriterler uygun ise 'UYGUN', herhangi biri uygun değil ise 'UYGUN DEĞİL' yaz.",
-        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
+        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen 'etkileşimli tahta hurdaya çıktı' gibi dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
     `;
 
-        const model = genAI.getGenerativeModel(
-            { model: 'gemini-2.0-flash' }
-        );
+        // Groq API (Llama 3) İsteği
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': \`Bearer \${process.env.GROQ_API_KEY}\`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: prompt },
+                    { role: 'user', content: \`İşte raporun metni:\\n\\n\${pdfText}\` }
+                ],
+                temperature: 0.1,
+                response_format: { type: 'json_object' }
+            })
+        });
 
-        // Prompt metni ile birlikte Multimodal PDF objesini modele gönderiyoruz
-        const result = await model.generateContent([prompt, pdfPart]);
-        const response = await result.response;
-        let responseText = response.text();
+        if (!groqRes.ok) {
+            const errText = await groqRes.text();
+            throw new Error(\`Groq API Hatası: \${groqRes.status} - \${errText}\`);
+        }
+
+        const groqData = await groqRes.json();
+        let responseText = groqData.choices[0].message.content;
         let analysisResult;
 
         try {

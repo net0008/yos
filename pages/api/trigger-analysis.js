@@ -3,13 +3,11 @@
 // Strateji: Rapor statüsünü 'beklemede' yapar ve webhook'un devralmasını bekler.
 // Webhook yoksa doğrudan analiz mantığını da çalıştırır.
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import pdf from 'pdf-parse';
 import { withAuth } from '../../lib/withAuth';
 
-// Gemini için yeterli süre
+// API isteği için yeterli süre
 export const config = { maxDuration: 65 };
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const validErrorCodes = [
     'IMZA_MUHUR_EKSİK', 'FORMAT_HATALI', 'ESKI_FORMAT',
@@ -67,17 +65,22 @@ async function handler(req, res) {
         if (downloadError) throw new Error(`PDF indirilemedi: ${downloadError.message}`);
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-        const pdfBase64 = fileBuffer.toString('base64');
-        const pdfPart = { inlineData: { data: pdfBase64, mimeType: 'application/pdf' } };
+        
+        let pdfText = '';
+        try {
+            const pdfData = await pdf(fileBuffer);
+            pdfText = pdfData.text;
+        } catch (err) {
+            throw new Error('PDF okunamadı veya bozuk: ' + err.message);
+        }
 
         // 3. Sistem ayarlarını çek
         const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
 
-        // 4. Gemini'a gönder
+        // 4. Groq'a (Llama 3) gönder
         const prompt = `
       SENARYO: Sen, YEĞİTEK Okul Sorumluları tarafından yüklenen aylık faaliyet raporlarını denetleyen uzman bir denetçisin.
-      GÖREV: Sana yüklenen PDF dosyasını (hem metin hem de GÖRSEL olarak) analiz et ve bulgularını sadece ve sadece istenen JSON formatında döndür. Başka hiçbir açıklama ekleme.
-      ÖNEMLİ: Bu bir MULTIMODAL analizdir. PDF'in içindeki metinlerin yanı sıra belgenin sonundaki/üzerindeki ISLAK İMZA ve KURUM MÜHRÜNÜ görsel olarak incelemelisin. Eğer belgede imza veya mühür yoksa, kontrol listesinde bunu belirt ve 'IMZA_MUHUR_EKSİK' hata kodunu döndür.
+      GÖREV: Sana verilen rapor metnini analiz et ve bulgularını sadece JSON formatında döndür.
       REFERANS BİLGİLERİ:
       1. Okul Sorumlusunun Resmi Görev Tanımları:
       ---
@@ -91,18 +94,36 @@ async function handler(req, res) {
       {
         "analiz_ozeti": "1-2 cümlelik genel bir özet.",
         "genel_durum": "Tüm kriterler uygun ise 'UYGUN', herhangi biri uygun değil ise 'UYGUN DEĞİL' yaz.",
-        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
+        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
     `;
 
-        const model = genAI.getGenerativeModel(
-            { model: 'gemini-2.0-flash' }
-        );
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': \`Bearer \${process.env.GROQ_API_KEY}\`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: prompt },
+                    { role: 'user', content: \`İşte raporun metni:\\n\\n\${pdfText}\` }
+                ],
+                temperature: 0.1,
+                response_format: { type: 'json_object' }
+            })
+        });
 
-        const result = await model.generateContent([prompt, pdfPart]);
-        const responseText = result.response.text();
+        if (!groqRes.ok) {
+            const errText = await groqRes.text();
+            throw new Error(\`Groq API Hatası: \${groqRes.status} - \${errText}\`);
+        }
+
+        const groqData = await groqRes.json();
+        let responseText = groqData.choices[0].message.content;
 
         let analysisResult;
         try {
