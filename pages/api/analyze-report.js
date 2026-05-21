@@ -122,10 +122,10 @@ export default async function handler(req, res) {
       }
     `;
 
-        // gemini-2.0-flash: v1beta endpoint + PDF inlineData destekli güncel model
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-        });
+        const model = genAI.getGenerativeModel(
+            { model: 'gemini-1.5-flash' },
+            { apiVersion: 'v1' }
+        );
 
         // Prompt metni ile birlikte Multimodal PDF objesini modele gönderiyoruz
         const result = await model.generateContent([prompt, pdfPart]);
