@@ -68,18 +68,19 @@ const Layout = ({ children, title = 'YEĞİTEK Okul Sorumlusu Rapor İnceleme Si
                             {/* SOL — Sistem adı + anasayfaya link */}
                             <Link
                                 href="/"
-                                className="flex-shrink-0 text-xs sm:text-sm font-semibold text-indigo-200 hover:text-white transition-colors leading-tight max-w-[160px] sm:max-w-xs"
+                                className="flex-shrink-0 flex items-center transition-opacity hover:opacity-80"
                                 title="Anasayfaya Git"
                             >
-                                YEĞİTEK Okul Sorumlusu<br className="hidden sm:block" />
-                                <span className="hidden sm:inline">Rapor İnceleme Sistemi</span>
+                                <img 
+                                    src="/images/logo.png" 
+                                    alt="YEĞİTEK Okul Sorumlusu Rapor İnceleme Sistemi" 
+                                    className="h-10 sm:h-12 w-auto object-contain"
+                                />
                             </Link>
 
                             {/* ORTA — Sayfa başlığı */}
-                            <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
-                                <span className="text-base sm:text-lg font-black tracking-wide text-white whitespace-nowrap">
-                                    YEĞİTEK Okul Sorumlusu
-                                </span>
+                            <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none hidden lg:block">
+                                {/* Logo eklendiği için eski metin başlığı kaldırıldı. */}
                             </div>
 
                             {/* SAĞ — Kullanıcı bilgisi + Çıkış */}
