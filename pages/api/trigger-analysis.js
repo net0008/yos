@@ -9,9 +9,7 @@ import { withAuth } from '../../lib/withAuth';
 // Gemini için yeterli süre
 export const config = { maxDuration: 65 };
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
-    apiVersion: 'v1beta',
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const validErrorCodes = [
     'IMZA_MUHUR_EKSİK', 'FORMAT_HATALI', 'ESKI_FORMAT',

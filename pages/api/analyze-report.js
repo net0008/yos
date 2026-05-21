@@ -8,9 +8,7 @@ export const config = {
 };
 
 // Gemini AI istemcisini v1beta ile başlat — PDF (inlineData) desteği için zorunlu
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
-    apiVersion: 'v1beta',
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // Geçerli hata kodları (Veritabanındaki rapor_status ENUM değerleri)
 const validErrorCodes = [
