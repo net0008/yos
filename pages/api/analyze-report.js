@@ -122,14 +122,14 @@ export default async function handler(req, res) {
         const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': \`Bearer \${process.env.GROQ_API_KEY}\`,
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 model: 'llama-3.3-70b-versatile',
                 messages: [
                     { role: 'system', content: prompt },
-                    { role: 'user', content: \`İşte raporun metni:\\n\\n\${pdfText}\` }
+                    { role: 'user', content: `İşte raporun metni:\n\n${pdfText}` }
                 ],
                 temperature: 0.1,
                 response_format: { type: 'json_object' }
