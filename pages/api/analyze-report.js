@@ -138,7 +138,7 @@ export default async function handler(req, res) {
 
         if (!groqRes.ok) {
             const errText = await groqRes.text();
-            throw new Error(\`Groq API Hatası: \${groqRes.status} - \${errText}\`);
+            throw new Error(`Groq API Hatası: ${groqRes.status} - ${errText}`);
         }
 
         const groqData = await groqRes.json();
