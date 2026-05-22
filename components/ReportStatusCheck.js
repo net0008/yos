@@ -7,6 +7,7 @@ const getStatusStyle = (status) => {
     if (status === 'onaylandi') return { text: 'Onaylandı', color: 'bg-green-100 text-green-800 border-green-200' };
     if (status === 'reddedildi') return { text: 'Reddedildi', color: 'bg-red-100 text-red-800 border-red-200' };
     if (status === 'duzeltme_istendi') return { text: 'Düzeltme İstendi', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+    if (status === 'RAPOR_GONDERILMEMIS') return { text: 'Gönderilmedi', color: 'bg-gray-100 text-gray-600 border-gray-200' };
     
     // Geri kalan tüm durumlar (ai_incelendi, beklemede, RAPOR_OKUNMUYOR, IMZA_EKSIK vb.) inceleniyor olarak yansır.
     return { text: 'İnceleniyor', color: 'bg-blue-100 text-blue-800 border-blue-200' };
@@ -131,8 +132,8 @@ const ReportStatusCheck = () => {
                             {reports.map((report) => {
                                 const statusInfo = getStatusStyle(report.status);
                                 
-                                // Rapor henüz neticelendirilmediyse (İnceleniyor ise) altındaki değerlendirme notu alanı gösterilmez.
-                                const isPending = statusInfo.text === 'İnceleniyor';
+                                // Rapor henüz neticelendirilmediyse (İnceleniyor veya Gönderilmedi ise) altındaki değerlendirme notu alanı gösterilmez.
+                                const isPending = statusInfo.text === 'İnceleniyor' || statusInfo.text === 'Gönderilmedi';
 
                                 return (
                                     <div key={report.id} className="bg-white border rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
