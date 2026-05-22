@@ -170,8 +170,14 @@ const ReportStatusCheck = () => {
                                                     <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Değerlendirme Notları</h5>
                                                     
                                                     {report.koordinator_notu && (
-                                                        <div className="mb-2 p-3 bg-blue-50 border border-blue-100 rounded-md">
-                                                            <p className="text-sm text-blue-900 font-medium"><span className="font-bold">Koordinatör:</span> {report.koordinator_notu}</p>
+                                                        <div className="mb-3 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-md shadow-sm">
+                                                            <div className="flex items-start">
+                                                                <ExclamationCircleIcon className="h-5 w-5 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
+                                                                <div>
+                                                                    <h6 className="text-sm font-bold text-red-800 mb-1">Koordinatörün Düzeltme Mesajı:</h6>
+                                                                    <p className="text-sm text-red-700 font-medium whitespace-pre-wrap">{report.koordinator_notu}</p>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                     
