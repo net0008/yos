@@ -7,7 +7,7 @@ export const config = {
     maxDuration: 60,
 };
 
-// Gemini istemcisi — v1beta: PDF inlineData + gemini-1.5-flash ücretsiz kota (1500/gün)
+// Gemini istemcisi — v1beta: PDF inlineData + gemini-2.5-flash ücretsiz AI Studio kotası
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
     apiVersion: 'v1beta',
 });
@@ -77,6 +77,22 @@ export default async function handler(req, res) {
 
     const rapor_id = rapor.id;
 
+    // Webhook payload'dan ID al, DB'den güncel ve tam veriyi çek
+    const { data: fullRapor, error: fetchErr } = await supabase
+        .from('raporlar')
+        .select('id, status, pdf_storage_path, donem, sorumlu_id, ay')
+        .eq('id', rapor_id)
+        .single();
+
+    if (fetchErr || !fullRapor) {
+        return res.status(404).json({ message: `Rapor ${rapor_id} veritabanında bulunamadı.` });
+    }
+
+    // DB'deki güncel status'u kontrol et (webhook payload stale olabilir)
+    if (fullRapor.status !== 'beklemede') {
+        return res.status(200).json({ success: true, message: `DB durumu '${fullRapor.status}'. Analiz atlandı.` });
+    }
+
     try {
         // Analiz başlamadan durumu güncelle
         await supabase.from('raporlar').update({ status: 'ai_incelendi' }).eq('id', rapor_id);
@@ -84,13 +100,13 @@ export default async function handler(req, res) {
         // PDF dosyasını Storage'dan indir
         const { data: fileData, error: downloadError } = await supabase.storage
             .from('raporlar')
-            .download(rapor.pdf_storage_path);
+            .download(fullRapor.pdf_storage_path);
 
         if (downloadError) throw new Error(`PDF indirme hatası: ${downloadError.message}`);
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
-        const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
+        const { gorevler, kriterler } = await getSystemSettings(fullRapor.donem);
 
         // PDF'i base64'e çevir ve Gemini'a gönder (multimodal: metin + görsel)
         const pdfBase64 = fileBuffer.toString('base64');
