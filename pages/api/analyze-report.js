@@ -1,11 +1,16 @@
 // pages/api/analyze-report.js
-import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin'; // Merkezi admin istemcisini kullan
-import pdf from 'pdf-parse';
+import { supabaseAdmin as supabase } from '../../lib/supabaseAdmin';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Vercel'in varsayılan zaman aşımını 60 saniyeye çıkarıyoruz.
 export const config = {
     maxDuration: 60,
 };
+
+// Gemini istemcisi — v1beta: PDF inlineData + gemini-1.5-flash ücretsiz kota (1500/gün)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
+    apiVersion: 'v1beta',
+});
 
 // Geçerli hata kodları (Veritabanındaki rapor_status ENUM değerleri)
 const validErrorCodes = [
@@ -85,16 +90,11 @@ export default async function handler(req, res) {
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
 
-        // PDF'in içindeki metni pdf-parse ile çıkarıyoruz
-        let pdfText = '';
-        try {
-            const pdfData = await pdf(fileBuffer);
-            pdfText = pdfData.text;
-        } catch (err) {
-            throw new Error('PDF okunamadı veya bozuk: ' + err.message);
-        }
-
         const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
+
+        // PDF'i base64'e çevir ve Gemini'a gönder (multimodal: metin + görsel)
+        const pdfBase64 = fileBuffer.toString('base64');
+        const pdfPart = { inlineData: { data: pdfBase64, mimeType: 'application/pdf' } };
 
         const prompt = `
       SENARYO: Sen, YEĞİTEK Okul Sorumluları tarafından yüklenen aylık faaliyet raporlarını denetleyen uzman bir denetçisin.
@@ -118,40 +118,19 @@ export default async function handler(req, res) {
       }
     `;
 
-        // Groq API (Llama 3) İsteği
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    { role: 'system', content: prompt },
-                    { role: 'user', content: `İşte raporun metni:\n\n${pdfText}` }
-                ],
-                temperature: 0.1,
-                response_format: { type: 'json_object' }
-            })
-        });
-
-        if (!groqRes.ok) {
-            const errText = await groqRes.text();
-            throw new Error(`Groq API Hatası: ${groqRes.status} - ${errText}`);
-        }
-
-        const groqData = await groqRes.json();
-        let responseText = groqData.choices[0].message.content;
+        // Gemini 1.5 Flash — PDF'i hem metin hem görsel olarak analiz eder
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const result = await model.generateContent([prompt, pdfPart]);
+        const response = await result.response;
+        let responseText = response.text();
         let analysisResult;
 
         try {
-            // Yanıtta JSON bloğu dışında metin olabilir, regex ile çıkar
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error('Yanıtta JSON bloğu bulunamadı.');
             analysisResult = JSON.parse(jsonMatch[0]);
         } catch (jsonError) {
-            console.error(`Rapor ID ${rapor_id} için AI'dan gelen JSON parse edilemedi. Yanıt:`, responseText);
+            console.error(`Rapor ID ${rapor_id} için AI JSON parse edilemedi:`, responseText);
             throw new Error(`Yapay zeka yanıtı geçerli bir formatta değil: ${jsonError.message}`);
         }
 

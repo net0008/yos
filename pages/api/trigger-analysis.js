@@ -1,13 +1,17 @@
 // pages/api/trigger-analysis.js
-// Koordinatör veya Admin tarafından 'beklemede' rapor için manuel analiz başlatır.
-// Strateji: Rapor statüsünü 'beklemede' yapar ve webhook'un devralmasını bekler.
-// Webhook yoksa doğrudan analiz mantığını da çalıştırır.
+// Koordinatör veya Admin tarafından manuel analiz başlatır.
+// Gemini 1.5 Flash (v1beta) — PDF'i native olarak okur, imza/mühür görseli dahil.
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
-import pdf from 'pdf-parse';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { withAuth } from '../../lib/withAuth';
 
-// API isteği için yeterli süre
+// Gemini için yeterli süre (PDF analizi 30-60 sn sürebilir)
 export const config = { maxDuration: 65 };
+
+// v1beta: PDF inlineData + gemini-1.5-flash ücretsiz kota (1500 istek/gün)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, {
+    apiVersion: 'v1beta',
+});
 
 const validErrorCodes = [
     'IMZA_MUHUR_EKSİK', 'FORMAT_HATALI', 'ESKI_FORMAT',
@@ -23,7 +27,7 @@ async function getSystemSettings(donem) {
         .select('donem, gorev_tanimlari, analiz_kriterleri');
     if (error) throw new Error('Sistem ayarları veritabanından çekilemedi.');
     const matched = (allSettings || []).find(s => normalize(s.donem) === normalize(donem));
-    if (!matched) throw new Error(`'${donem}' dönemi için sistem ayarları bulunamadı. Lütfen Admin panelinden bu dönem için ayar ekleyin.`);
+    if (!matched) throw new Error(`'${donem}' dönemi için sistem ayarları bulunamadı.`);
     return {
         gorevler: matched.gorev_tanimlari,
         kriterler: Array.isArray(matched.analiz_kriterleri) ? matched.analiz_kriterleri : [],
@@ -38,7 +42,6 @@ async function handler(req, res) {
     const { reportId } = req.body;
     if (!reportId) return res.status(400).json({ message: 'reportId zorunludur.' });
 
-    // Raporu veritabanından çek
     const { data: rapor, error: fetchError } = await supabaseAdmin
         .from('raporlar')
         .select('id, status, pdf_storage_path, donem, sorumlu_id')
@@ -51,13 +54,13 @@ async function handler(req, res) {
     const rapor_id = rapor.id;
 
     try {
-        // 1. Durumu 'ai_incelendi' yap (webhook'u tekrar tetiklememek için beklemede'den geçmiyoruz)
+        // Durumu güncelle (webhook'u tetiklemeden)
         await supabaseAdmin
             .from('raporlar')
             .update({ status: 'ai_incelendi', ai_analiz_sonucu: null })
             .eq('id', rapor_id);
 
-        // 2. PDF'i indir
+        // PDF'i Storage'dan indir
         const { data: fileData, error: downloadError } = await supabaseAdmin.storage
             .from('raporlar')
             .download(rapor.pdf_storage_path);
@@ -65,22 +68,17 @@ async function handler(req, res) {
         if (downloadError) throw new Error(`PDF indirilemedi: ${downloadError.message}`);
 
         const fileBuffer = Buffer.from(await fileData.arrayBuffer());
-        
-        let pdfText = '';
-        try {
-            const pdfData = await pdf(fileBuffer);
-            pdfText = pdfData.text;
-        } catch (err) {
-            throw new Error('PDF okunamadı veya bozuk: ' + err.message);
-        }
 
-        // 3. Sistem ayarlarını çek
+        // PDF'i base64'e çevir — Gemini hem metin hem görseli okur (imza, mühür dahil)
+        const pdfBase64 = fileBuffer.toString('base64');
+        const pdfPart = { inlineData: { data: pdfBase64, mimeType: 'application/pdf' } };
+
         const { gorevler, kriterler } = await getSystemSettings(rapor.donem);
 
-        // 4. Groq'a (Llama 3) gönder
         const prompt = `
       SENARYO: Sen, YEĞİTEK Okul Sorumluları tarafından yüklenen aylık faaliyet raporlarını denetleyen uzman bir denetçisin.
-      GÖREV: Sana verilen rapor metnini analiz et ve bulgularını sadece JSON formatında döndür.
+      GÖREV: Sana yüklenen PDF dosyasını (hem metin hem de GÖRSEL olarak) analiz et ve bulgularını sadece ve sadece istenen JSON formatında döndür. Başka hiçbir açıklama ekleme.
+      ÖNEMLİ: Bu bir MULTIMODAL analizdir. PDF'in içindeki metinlerin yanı sıra belgenin sonundaki/üzerindeki ISLAK İMZA ve KURUM MÜHRÜNÜ görsel olarak incelemelisin. Eğer belgede imza veya mühür yoksa, kontrol listesinde bunu belirt ve 'IMZA_MUHUR_EKSİK' hata kodunu döndür.
       REFERANS BİLGİLERİ:
       1. Okul Sorumlusunun Resmi Görev Tanımları:
       ---
@@ -94,47 +92,29 @@ async function handler(req, res) {
       {
         "analiz_ozeti": "1-2 cümlelik genel bir özet.",
         "genel_durum": "Tüm kriterler uygun ise 'UYGUN', herhangi biri uygun değil ise 'UYGUN DEĞİL' yaz.",
-        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
+        "kontrol_listesi": [{"kriter": "Değerlendirme kriterinin tam metni", "durum": "'UYGUN' veya 'UYGUN DEĞİL'", "aciklama": "Bu kararı neden verdiğini kısaca açıkla.", "hata_kodu": "Eğer durum 'UYGUN DEĞİL' ise, ilgili hata kodunu (örn: IMZA_MUHUR_EKSİK, FORMAT_HATALI, ESKI_FORMAT, GENEL_IFADE, BOS_BOLUM_ACIKLAMA_YOK, UST_BILGI_EKSİK_HATALI, ONAY_TARIHI_EKSİK, RAPOR_OKUNMUYOR) buraya ekle, yoksa null."}],
         "gorev_kapsami_analizi": {"kapsam_disi_faaliyetler": ["Görev tanımı dışında tespit ettiğin faaliyetleri buraya dizi olarak ekle."], "aciklama": "Kapsam dışı faaliyetler hakkında kısa bir yorum."},
         "siradisi_durumlar": ["Raporda belirtilen dikkat çekici, aksaklık veya özel durumları bu diziye ekle."]
       }
     `;
 
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    { role: 'system', content: prompt },
-                    { role: 'user', content: `İşte raporun metni:\n\n${pdfText}` }
-                ],
-                temperature: 0.1,
-                response_format: { type: 'json_object' }
-            })
-        });
-
-        if (!groqRes.ok) {
-            const errText = await groqRes.text();
-            throw new Error(`Groq API Hatası: ${groqRes.status} - ${errText}`);
-        }
-
-        const groqData = await groqRes.json();
-        let responseText = groqData.choices[0].message.content;
+        // Gemini 1.5 Flash — PDF'i native olarak okur (multimodal)
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const result = await model.generateContent([prompt, pdfPart]);
+        const response = await result.response;
+        let responseText = response.text();
 
         let analysisResult;
         try {
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error('Yanıtta JSON bloğu bulunamadı.');
             analysisResult = JSON.parse(jsonMatch[0]);
-        } catch {
-            throw new Error('Yapay zeka yanıtı geçerli JSON formatında değil.');
+        } catch (jsonError) {
+            console.error(`[TRIGGER] Rapor ID ${rapor_id} JSON parse hatası:`, responseText);
+            throw new Error(`Yapay zeka yanıtı geçerli JSON formatında değil: ${jsonError.message}`);
         }
 
-        // 5. Nihai durumu belirle
+        // Nihai durumu belirle
         let finalStatus = 'koordinator_onayinda';
         if (analysisResult.genel_durum === 'UYGUN') {
             finalStatus = 'onaylandi';
@@ -150,7 +130,7 @@ async function handler(req, res) {
             }
         }
 
-        // 6. Sonucu kaydet
+        // Sonucu kaydet
         await supabaseAdmin
             .from('raporlar')
             .update({ ai_analiz_sonucu: analysisResult, status: finalStatus })
