@@ -278,8 +278,9 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                                                         {/* İncele butonu */}
                                                         <button
                                                             onClick={() => onReviewClick(report.id)}
-                                                            className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md transition-colors"
-                                                            title="Raporu İncele"
+                                                            disabled={isRaporGonderilmemis}
+                                                            className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title={isRaporGonderilmemis ? "Kişiye ait yüklenmiş rapor bulunmadığı için incelenemez" : "Raporu İncele"}
                                                         >
                                                             <DocumentMagnifyingGlassIcon className="h-4 w-4" /> <span className="hidden sm:inline">İncele</span>
                                                         </button>
