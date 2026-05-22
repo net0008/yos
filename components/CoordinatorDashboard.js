@@ -318,7 +318,10 @@ const CoordinatorDashboard = ({ sorumlular = [], reports: initialReports = [], o
                                                     {sorumlu.ilce_adi || '—'}
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}>
+                                                    <span 
+                                                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}
+                                                        title={status === 'ai_analiz_hatasi' ? "Yapay zeka sunucuları şu an çok yoğun. Lütfen birkaç dakika sonra 'Analiz Et' butonuna tıklayarak tekrar deneyin." : undefined}
+                                                    >
                                                         {text}
                                                     </span>
                                                 </td>

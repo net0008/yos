@@ -150,7 +150,12 @@ async function handler(req, res) {
             koordinator_notu: `[SİSTEM] Manuel analiz hatası: ${error.message}`,
         }).eq('id', rapor_id);
 
-        return res.status(500).json({ message: `Analiz sırasında hata: ${error.message}` });
+        let displayMessage = `Analiz sırasında hata: ${error.message}`;
+        if (error.message.includes('503') || error.message.toLowerCase().includes('high demand') || error.message.toLowerCase().includes('service unavailable')) {
+            displayMessage = 'Yapay zeka sunucuları şu an çok yoğun. Lütfen birkaç dakika sonra tekrar deneyin.';
+        }
+
+        return res.status(500).json({ message: displayMessage });
     }
 }
 
