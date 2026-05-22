@@ -3,24 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { IdentificationIcon, ArrowPathIcon, ExclamationCircleIcon, UserCircleIcon, DocumentMagnifyingGlassIcon } from '@heroicons/react/24/solid';
 
 const getStatusStyle = (status) => {
-    const styles = {
-        onaylandi:             { text: 'Onaylandı',          color: 'bg-green-100 text-green-800 border-green-200' },
-        reddedildi:            { text: 'Reddedildi',         color: 'bg-red-100 text-red-800 border-red-200' },
-        koordinator_onayinda:  { text: 'Onay Bekliyor',      color: 'bg-blue-100 text-blue-800 border-blue-200' },
-        ai_incelendi:          { text: 'AI İnceliyor',        color: 'bg-purple-100 text-purple-800 border-purple-200' },
-        beklemede:             { text: 'Sıraya Alındı',      color: 'bg-gray-100 text-gray-800 border-gray-200' },
-        duzeltme_istendi:      { text: 'Düzeltme İstendi',   color: 'bg-orange-100 text-orange-800 border-orange-200' },
-        ai_analiz_hatasi:      { text: 'Analiz Hatası',      color: 'bg-red-100 text-red-700 border-red-200' },
-        IMZA_MUHUR_EKSİK:      { text: 'İmza/Mühür Eksik',  color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        FORMAT_HATALI:         { text: 'Format Hatalı',      color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        ESKI_FORMAT:           { text: 'Eski Format',        color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        GENEL_IFADE:           { text: 'Genel İfade',        color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        BOS_BOLUM_ACIKLAMA_YOK:{ text: 'Boş Bölüm',         color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        UST_BILGI_EKSİK_HATALI:{ text: 'Üst Bilgi Eksik',   color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        ONAY_TARIHI_EKSİK:     { text: 'Onay Tarihi Eksik', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-        RAPOR_OKUNMUYOR:       { text: 'Rapor Okunamıyor',  color: 'bg-red-100 text-red-800 border-red-200' },
-    };
-    return styles[status] || { text: status, color: 'bg-gray-100 text-gray-800 border-gray-200' };
+    // Sorumlu için basitleştirilmiş görünüm (Sadece net kararlar gösterilir)
+    if (status === 'onaylandi') return { text: 'Onaylandı', color: 'bg-green-100 text-green-800 border-green-200' };
+    if (status === 'reddedildi') return { text: 'Reddedildi', color: 'bg-red-100 text-red-800 border-red-200' };
+    if (status === 'duzeltme_istendi') return { text: 'Düzeltme İstendi', color: 'bg-orange-100 text-orange-800 border-orange-200' };
+    
+    // Geri kalan tüm durumlar (ai_incelendi, beklemede, RAPOR_OKUNMUYOR, IMZA_EKSIK vb.) inceleniyor olarak yansır.
+    return { text: 'İnceleniyor', color: 'bg-blue-100 text-blue-800 border-blue-200' };
 };
 
 const ReportStatusCheck = () => {
@@ -142,8 +131,8 @@ const ReportStatusCheck = () => {
                             {reports.map((report) => {
                                 const statusInfo = getStatusStyle(report.status);
                                 
-                                // Rapor bekleme aşamasında değilse değerlendirme notu gösterilecek
-                                const isPending = report.status === 'beklemede' || report.status === 'ai_incelendi' || report.status === 'ai_analiz_hatasi';
+                                // Rapor henüz neticelendirilmediyse (İnceleniyor ise) altındaki değerlendirme notu alanı gösterilmez.
+                                const isPending = statusInfo.text === 'İnceleniyor';
 
                                 return (
                                     <div key={report.id} className="bg-white border rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
