@@ -25,7 +25,10 @@ export default function Home() {
                         </div>
                         <h2 className="heading-2 mb-3">Okul Sorumlusu</h2>
                         <p className="text-slate-500 mb-8 flex-grow">Aylık faaliyet raporlarınızı PDF formatında yükleyin ve durumunu takip edin.</p>
-                        <Link href="/sorumlu/upload" className="btn-primary w-full">Rapor Yükle</Link>
+                        <div className="flex flex-col sm:flex-row gap-3 w-full">
+                            <Link href="/sorumlu/upload" className="btn-primary w-full">Rapor Yükle</Link>
+                            <Link href="/sorumlu/takip" className="btn-outline w-full !text-indigo-600 hover:!bg-indigo-50 hover:!border-indigo-300">Durum Sorgula</Link>
+                        </div>
                     </div>
 
                     {/* Yönetici (Admin & Koordinatör) Kartı */}
