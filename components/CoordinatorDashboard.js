@@ -49,7 +49,18 @@ const DONEMLER = [
     '2026-2027 2. Dönem',
 ];
 
-const AYLAR = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+const AYLAR = [
+    { value: '9', label: '9 (Eylül)' },
+    { value: '10', label: '10 (Ekim)' },
+    { value: '11', label: '11 (Kasım)' },
+    { value: '12', label: '12 (Aralık)' },
+    { value: '1', label: '1 (Ocak)' },
+    { value: '2', label: '2 (Şubat)' },
+    { value: '3', label: '3 (Mart)' },
+    { value: '4', label: '4 (Nisan)' },
+    { value: '5', label: '5 (Mayıs)' },
+    { value: '6', label: '6 (Haziran)' }
+];
 
 const CoordinatorDashboard = ({ sorumlular = [], reports: initialReports = [], onReviewClick }) => {
     const [reports, setReports] = useState(initialReports);
@@ -58,7 +69,7 @@ const CoordinatorDashboard = ({ sorumlular = [], reports: initialReports = [], o
     
     // Filtreleme için varsayılan dönem ve ay. İhtiyaca göre dinamik yapılabilir.
     const [selectedDonem, setSelectedDonem] = useState('2025-2026 2. Dönem');
-    const [selectedAy, setSelectedAy] = useState('4');
+    const [selectedAy, setSelectedAy] = useState('9');
     
     const [analyzingIds, setAnalyzingIds] = useState(new Set());
     const [deletingIds, setDeletingIds] = useState(new Set());
@@ -198,7 +209,7 @@ const CoordinatorDashboard = ({ sorumlular = [], reports: initialReports = [], o
                             onChange={(e) => setSelectedAy(e.target.value)}
                             className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer"
                         >
-                            {AYLAR.map(ay => <option key={ay} value={ay}>{ay}. Ay</option>)}
+                            {AYLAR.map(ay => <option key={ay.value} value={ay.value}>{ay.label}</option>)}
                         </select>
                     </div>
                 </div>

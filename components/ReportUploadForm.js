@@ -17,8 +17,19 @@ const ReportUploadForm = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [verifiedSorumlu, setVerifiedSorumlu] = useState(null);
 
-    // Ay isimleri listesi
-    const aylar = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+    // Ay isimleri listesi (Eğitim-Öğretim yılı bazlı)
+    const AYLAR = [
+        { value: '9', label: '9 (Eylül)' },
+        { value: '10', label: '10 (Ekim)' },
+        { value: '11', label: '11 (Kasım)' },
+        { value: '12', label: '12 (Aralık)' },
+        { value: '1', label: '1 (Ocak)' },
+        { value: '2', label: '2 (Şubat)' },
+        { value: '3', label: '3 (Mart)' },
+        { value: '4', label: '4 (Nisan)' },
+        { value: '5', label: '5 (Mayıs)' },
+        { value: '6', label: '6 (Haziran)' }
+    ];
 
     const handleVerify = async (e) => {
         e.preventDefault();
@@ -135,8 +146,8 @@ const ReportUploadForm = () => {
                             <label className="block text-sm font-medium text-slate-700 mb-1">Ay</label>
                             <select value={ay} onChange={(e) => setAy(e.target.value)} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
                                 <option value="" disabled>-- Ay Seçiniz --</option>
-                                {aylar.map((ayIsmi, index) => (
-                                    <option key={index + 1} value={index + 1}>{ayIsmi} ({index + 1}. Ay)</option>
+                                {AYLAR.map((ayObj) => (
+                                    <option key={ayObj.value} value={ayObj.value}>{ayObj.label}</option>
                                 ))}
                             </select>
                         </div>
