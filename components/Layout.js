@@ -80,7 +80,9 @@ const Layout = ({ children, title = 'YEĞİTEK Okul Sorumlusu Rapor İnceleme Si
 
                             {/* ORTA — Sayfa başlığı */}
                             <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none hidden lg:block">
-                                {/* Logo eklendiği için eski metin başlığı kaldırıldı. */}
+                                <h1 className="text-lg xl:text-xl font-bold tracking-wide text-white drop-shadow-sm">
+                                    YEĞİTEK Okul Sorumlusu Rapor İnceleme Sistemi
+                                </h1>
                             </div>
 
                             {/* SAĞ — Kullanıcı bilgisi + Çıkış */}

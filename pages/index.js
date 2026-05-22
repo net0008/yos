@@ -6,12 +6,13 @@ export default function Home() {
     return (
         <Layout title="YEĞİTEK Okul Sorumlusu Rapor İnceleme Sistemi">
             <div className="flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-                <div className="text-center max-w-3xl mx-auto mb-16">
-                    <h1 className="heading-1 mb-6">
-                        <span className="block text-indigo-600 mb-2">YEĞİTEK</span>
-                        Okul Sorumlusu Rapor İnceleme Sistemi
-                    </h1>
-                    <p className="text-lg sm:text-xl text-slate-500">
+                <div className="text-center max-w-3xl mx-auto mb-16 mt-4">
+                    <img 
+                        src="/images/logo.png" 
+                        alt="YEĞİTEK Okul Sorumlusu Rapor İnceleme Sistemi" 
+                        className="mx-auto h-32 sm:h-40 md:h-48 w-auto object-contain mb-8 drop-shadow-sm"
+                    />
+                    <p className="text-lg sm:text-xl text-slate-500 font-medium">
                         Okul sorumluları, koordinatörler ve yöneticiler için geliştirilmiş, yapay zeka destekli akıllı rapor analiz ve takip platformu.
                     </p>
                 </div>
