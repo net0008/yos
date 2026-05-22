@@ -8,8 +8,8 @@ const ReportUploadForm = () => {
     // Form state'leri
     const [adSoyad, setAdSoyad] = useState('');
     const [kurumKodu, setKurumKodu] = useState('');
-    const [donem, setDonem] = useState('2025-2026 1. Dönem'); // Örnek dönem
-    const [ay, setAy] = useState(new Date().getMonth() + 1); // Mevcut ay
+    const [donem, setDonem] = useState(''); // Başlangıçta boş
+    const [ay, setAy] = useState(''); // Başlangıçta boş
     const [file, setFile] = useState(null);
 
     // Arayüz durum state'leri
@@ -48,6 +48,10 @@ const ReportUploadForm = () => {
 
     const handleUpload = async (e) => {
         e.preventDefault();
+        if (!donem || !ay) {
+            setErrorMessage('Lütfen rapor yüklemeden önce Dönem ve Ay seçiminizi yapınız.');
+            return;
+        }
         if (!file) {
             setErrorMessage('Lütfen bir PDF dosyası seçin.');
             return;
@@ -121,14 +125,16 @@ const ReportUploadForm = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Dönem</label>
-                            <select value={donem} onChange={(e) => setDonem(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                                <option>2025-2026 1. Dönem</option>
-                                <option>2025-2026 2. Dönem</option>
+                            <select value={donem} onChange={(e) => setDonem(e.target.value)} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="" disabled>-- Dönem Seçiniz --</option>
+                                <option value="2025-2026 1. Dönem">2025-2026 1. Dönem</option>
+                                <option value="2025-2026 2. Dönem">2025-2026 2. Dönem</option>
                             </select>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">Ay</label>
-                            <select value={ay} onChange={(e) => setAy(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <select value={ay} onChange={(e) => setAy(e.target.value)} required className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="" disabled>-- Ay Seçiniz --</option>
                                 {aylar.map((ayIsmi, index) => (
                                     <option key={index + 1} value={index + 1}>{ayIsmi} ({index + 1}. Ay)</option>
                                 ))}
