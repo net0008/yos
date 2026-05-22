@@ -210,6 +210,7 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                                         const isAnalyzing = analyzingIds.has(report.id);
                                         const isDeleting = deletingIds.has(report.id);
                                         const showTrigger = canTriggerAnalysis(report.status);
+                                        const isRaporGonderilmemis = report.status === 'RAPOR_GONDERILMEMIS';
 
                                         // AI Sonucu
                                         let aiResult = '—';
@@ -285,9 +286,9 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                                                         {/* Sil butonu */}
                                                         <button
                                                             onClick={() => handleDeleteReport(report.id)}
-                                                            disabled={isDeleting}
+                                                            disabled={isDeleting || isRaporGonderilmemis}
                                                             className="text-red-600 hover:text-red-900 flex items-center gap-1 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            title="Raporu Sil"
+                                                            title={isRaporGonderilmemis ? "Kişiye ait yüklenmiş rapor bulunmadığı için silinemez" : "Raporu Sil"}
                                                         >
                                                             {isDeleting ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
                                                         </button>
