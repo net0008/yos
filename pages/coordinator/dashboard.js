@@ -6,7 +6,7 @@ import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { createServerClient } from '@supabase/ssr';
 import { serialize } from 'cookie';
 
-export default function CoordinatorDashboardPage({ reports }) {
+export default function CoordinatorDashboardPage({ sorumlular, reports }) {
     const router = useRouter();
 
     const handleReviewClick = (reportId) => {
@@ -15,7 +15,7 @@ export default function CoordinatorDashboardPage({ reports }) {
 
     return (
         <Layout title="Koordinatör Paneli">
-            <CoordinatorDashboard reports={reports} onReviewClick={handleReviewClick} />
+            <CoordinatorDashboard sorumlular={sorumlular} reports={reports} onReviewClick={handleReviewClick} />
         </Layout>
     );
 }
@@ -62,12 +62,22 @@ export async function getServerSideProps(context) {
         if (assignError) throw assignError;
 
         if (!assignments || assignments.length === 0) {
-            return { props: { reports: [] } };
+            return { props: { sorumlular: [], reports: [] } };
         }
 
         const sorumluIds = assignments.map((a) => a.sorumlu_id);
 
-        // Bu sorumluların raporlarını, sorumlu bilgileriyle birlikte çek
+        // Bu sorumluların bilgilerini çek
+        const { data: sorumlular, error: sorumlularError } = await supabaseAdmin
+            .from('okul_sorumlulari')
+            .select('id, ad_soyad, okul_adi, ilce_adi')
+            .in('id', sorumluIds)
+            .order('ilce_adi', { ascending: true })
+            .order('okul_adi', { ascending: true });
+
+        if (sorumlularError) throw sorumlularError;
+
+        // Bu sorumluların raporlarını çek (okul_sorumlulari bilgisine gerek yok, sorumlu_id yeterli)
         const { data: reports, error: reportsError } = await supabaseAdmin
             .from('raporlar')
             .select(`
@@ -77,24 +87,20 @@ export async function getServerSideProps(context) {
                 status,
                 yuklenme_tarihi,
                 ai_analiz_sonucu,
-                okul_sorumlulari (
-                    ad_soyad,
-                    okul_adi,
-                    ilce_adi
-                )
+                sorumlu_id
             `)
-            .in('sorumlu_id', sorumluIds)
-            .order('yuklenme_tarihi', { ascending: false });
+            .in('sorumlu_id', sorumluIds);
 
         if (reportsError) throw reportsError;
 
         return {
             props: {
+                sorumlular: sorumlular || [],
                 reports: reports || [],
             },
         };
     } catch (error) {
         console.error('Koordinatör dashboard veri çekme hatası:', error.message);
-        return { props: { reports: [] } };
+        return { props: { sorumlular: [], reports: [] } };
     }
 }

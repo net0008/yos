@@ -7,6 +7,7 @@ import {
     SparklesIcon,
     ArrowPathIcon,
     TrashIcon,
+    CalendarIcon
 } from '@heroicons/react/24/outline';
 import { supabase } from '../lib/supabaseClient';
 
@@ -22,7 +23,7 @@ const getStatusStyle = (status) => {
         beklemede:             { text: 'Yüklendi',           color: 'bg-gray-100 text-gray-800' },
         duzeltme_istendi:      { text: 'Düzeltme İstendi',   color: 'bg-orange-100 text-orange-800' },
         ai_analiz_hatasi:      { text: 'Analiz Hatası',      color: 'bg-red-100 text-red-700' },
-        RAPOR_GONDERILMEMIS:   { text: 'Rapor Gönderilmemiş', color: 'bg-red-200 text-red-900 font-bold' },
+        RAPOR_GONDERILMEMIS:   { text: 'Rapor Gönderilmedi', color: 'bg-gray-100 text-gray-500 font-bold' },
         IMZA_MUHUR_EKSİK:      { text: 'İmza/Mühür Eksik',  color: 'bg-yellow-100 text-yellow-800' },
         FORMAT_HATALI:         { text: 'Format Hatalı',      color: 'bg-yellow-100 text-yellow-800' },
         ESKI_FORMAT:           { text: 'Eski Format',        color: 'bg-yellow-100 text-yellow-800' },
@@ -39,26 +40,57 @@ const getStatusStyle = (status) => {
 const canTriggerAnalysis = (status) =>
     ['beklemede', 'ai_analiz_hatasi', 'duzeltme_istendi'].includes(status);
 
-const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
+const DONEMLER = [
+    '2024-2025 1. Dönem',
+    '2024-2025 2. Dönem',
+    '2025-2026 1. Dönem',
+    '2025-2026 2. Dönem',
+    '2026-2027 1. Dönem',
+    '2026-2027 2. Dönem',
+];
+
+const AYLAR = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+
+const CoordinatorDashboard = ({ sorumlular = [], reports: initialReports = [], onReviewClick }) => {
     const [reports, setReports] = useState(initialReports);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    
+    // Filtreleme için varsayılan dönem ve ay. İhtiyaca göre dinamik yapılabilir.
+    const [selectedDonem, setSelectedDonem] = useState('2025-2026 2. Dönem');
+    const [selectedAy, setSelectedAy] = useState('4');
+    
     const [analyzingIds, setAnalyzingIds] = useState(new Set());
     const [deletingIds, setDeletingIds] = useState(new Set());
     const [flashMsg, setFlashMsg] = useState('');
 
-    const filteredReports = useMemo(() => {
-        return reports.filter(report => {
+    // Seçili dönem ve aya göre her bir sorumlu için rapor durumunu belirler
+    const mappedData = useMemo(() => {
+        return sorumlular.map(sorumlu => {
+            const report = reports.find(r => r.sorumlu_id === sorumlu.id && r.donem === selectedDonem && String(r.ay) === selectedAy);
+            return {
+                sorumlu,
+                report: report || null,
+                status: report ? report.status : 'RAPOR_GONDERILMEMIS'
+            };
+        });
+    }, [sorumlular, reports, selectedDonem, selectedAy]);
+
+    // Arama ve statü filtrelemesini uygular
+    const filteredData = useMemo(() => {
+        return mappedData.filter(item => {
             const matchesSearch =
-                report.okul_sorumlulari.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                report.okul_sorumlulari.okul_adi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                report.okul_sorumlulari.ilce_adi.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
+                item.sorumlu.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.sorumlu.okul_adi?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.sorumlu.ilce_adi?.toLowerCase().includes(searchTerm.toLowerCase());
+            
+            const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+            
             return matchesSearch && matchesStatus;
         });
-    }, [reports, searchTerm, statusFilter]);
+    }, [mappedData, searchTerm, statusFilter]);
 
-    const allStatuses = useMemo(() => [...new Set(reports.map(r => r.status))], [reports]);
+    const allStatuses = useMemo(() => [...new Set(mappedData.map(d => d.status))], [mappedData]);
 
     const handleTriggerAnalysis = async (reportId) => {
         setAnalyzingIds(prev => new Set(prev).add(reportId));
@@ -103,7 +135,7 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
     };
 
     const handleDeleteReport = async (reportId) => {
-        if (!window.confirm('Bu raporu silmek istediğinize emin misiniz? Bu işlem geri alınamaz.')) {
+        if (!window.confirm('Bu raporu silmek istediğinize emin misiniz? Sadece rapor ve analiz silinecek, sorumlu durumu "Gönderilmedi" olarak sıfırlanacaktır.')) {
             return;
         }
         
@@ -125,8 +157,10 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
             const data = await res.json();
 
             if (res.ok) {
+                // Rapor başarıyla silindiğinde, state'ten çıkarıyoruz.
+                // Bu sayede o kişi için rapor bulunamayacak ve durumu RAPOR_GONDERILMEMIS (reset) olacaktır.
                 setReports(prev => prev.filter(r => r.id !== reportId));
-                setFlashMsg('✅ Rapor başarıyla silindi.');
+                setFlashMsg('✅ Rapor başarıyla silindi. Kişi durumu sıfırlandı.');
             } else {
                 setFlashMsg(`⚠️ Rapor silinemedi: ${data.message}`);
             }
@@ -145,7 +179,29 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
     return (
         <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
             <div className="max-w-7xl mx-auto">
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6">Koordinatör Paneli</h1>
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Koordinatör Paneli</h1>
+                    
+                    {/* Dönem ve Ay Seçimi */}
+                    <div className="flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-gray-200">
+                        <CalendarIcon className="h-5 w-5 text-gray-400 ml-2" />
+                        <select 
+                            value={selectedDonem} 
+                            onChange={(e) => setSelectedDonem(e.target.value)}
+                            className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer"
+                        >
+                            {DONEMLER.map(donem => <option key={donem} value={donem}>{donem}</option>)}
+                        </select>
+                        <span className="text-gray-300">|</span>
+                        <select 
+                            value={selectedAy} 
+                            onChange={(e) => setSelectedAy(e.target.value)}
+                            className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer"
+                        >
+                            {AYLAR.map(ay => <option key={ay} value={ay}>{ay}. Ay</option>)}
+                        </select>
+                    </div>
+                </div>
 
                 {/* Flash Mesaj */}
                 {flashMsg && (
@@ -182,51 +238,54 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                 </div>
 
                 {/* Rapor Listesi Tablosu */}
-                <div className="bg-white shadow-sm rounded-lg overflow-hidden w-full">
-                    <div className="w-full">
-                        <table className="w-full divide-y divide-gray-200 table-fixed">
+                <div className="bg-white shadow-sm rounded-lg overflow-hidden w-full border border-gray-200">
+                    <div className="w-full overflow-x-auto">
+                        <table className="w-full divide-y divide-gray-200 min-w-[800px]">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-8">No</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Adı Soyadı</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32 lg:w-48">Okul Adı</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">İlçe</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Rapor Dönemi</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Durum</th>
-                                    <th scope="col" className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">AI Sonucu</th>
-                                    <th scope="col" className="relative px-2 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-40">İşlemler</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">No</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Adı Soyadı</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Okul Adı</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">İlçe</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Durum</th>
+                                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">AI Sonucu</th>
+                                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-48">İşlemler</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {filteredReports.length === 0 ? (
+                                {filteredData.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-10 text-center text-sm text-gray-400">
-                                            Gösterilecek rapor bulunamadı.
+                                        <td colSpan={7} className="px-6 py-10 text-center text-sm text-gray-400">
+                                            Gösterilecek kişi/rapor bulunamadı.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredReports.map((report, index) => {
-                                        const { text, color } = getStatusStyle(report.status);
-                                        const isAnalyzing = analyzingIds.has(report.id);
-                                        const isDeleting = deletingIds.has(report.id);
-                                        const showTrigger = canTriggerAnalysis(report.status);
-                                        const isRaporGonderilmemis = report.status === 'RAPOR_GONDERILMEMIS';
+                                    filteredData.map((item, index) => {
+                                        const { sorumlu, report, status } = item;
+                                        const { text, color } = getStatusStyle(status);
+                                        
+                                        const isAnalyzing = report ? analyzingIds.has(report.id) : false;
+                                        const isDeleting = report ? deletingIds.has(report.id) : false;
+                                        const showTrigger = report ? canTriggerAnalysis(status) : false;
+                                        const isRaporGonderilmemis = status === 'RAPOR_GONDERILMEMIS';
 
                                         // AI Sonucu
                                         let aiResult = '—';
-                                        if (report.ai_analiz_sonucu) {
-                                            try {
-                                                const parsed = typeof report.ai_analiz_sonucu === 'string'
-                                                    ? JSON.parse(report.ai_analiz_sonucu)
-                                                    : report.ai_analiz_sonucu;
-                                                aiResult = parsed?.genel_durum || '—';
-                                            } catch { aiResult = 'Veri Hatası'; }
-                                        } else if (report.status === 'beklemede') {
-                                            aiResult = 'Bekliyor';
-                                        } else if (report.status === 'ai_incelendi') {
-                                            aiResult = 'İşleniyor…';
-                                        } else if (report.status === 'ai_analiz_hatasi') {
-                                            aiResult = 'Hata';
+                                        if (report) {
+                                            if (report.ai_analiz_sonucu) {
+                                                try {
+                                                    const parsed = typeof report.ai_analiz_sonucu === 'string'
+                                                        ? JSON.parse(report.ai_analiz_sonucu)
+                                                        : report.ai_analiz_sonucu;
+                                                    aiResult = parsed?.genel_durum || '—';
+                                                } catch { aiResult = 'Veri Hatası'; }
+                                            } else if (status === 'beklemede') {
+                                                aiResult = 'Bekliyor';
+                                            } else if (status === 'ai_incelendi') {
+                                                aiResult = 'İşleniyor…';
+                                            } else if (status === 'ai_analiz_hatasi') {
+                                                aiResult = 'Hata';
+                                            }
                                         }
 
                                         const resultColor =
@@ -236,32 +295,29 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                                             'text-gray-400';
 
                                         return (
-                                            <tr key={report.id} className="hover:bg-gray-50">
-                                                <td className="px-2 py-2 whitespace-normal text-xs text-gray-500 break-words">{index + 1}</td>
-                                                <td className="px-2 py-2 whitespace-normal text-xs font-medium text-gray-900 break-words">
-                                                    {report.okul_sorumlulari.ad_soyad}
+                                            <tr key={sorumlu.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
+                                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                                    {sorumlu.ad_soyad}
                                                 </td>
-                                                <td className="px-2 py-2 whitespace-normal text-xs text-gray-500 break-words">
-                                                    {report.okul_sorumlulari.okul_adi || '—'}
+                                                <td className="px-4 py-3 text-sm text-gray-500">
+                                                    {sorumlu.okul_adi || '—'}
                                                 </td>
-                                                <td className="px-2 py-2 whitespace-normal text-xs text-gray-500 break-words">
-                                                    {report.okul_sorumlulari.ilce_adi}
+                                                <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                                                    {sorumlu.ilce_adi || '—'}
                                                 </td>
-                                                <td className="px-2 py-2 whitespace-normal text-xs text-gray-500 break-words">
-                                                    {`${report.donem} - ${report.ay}. Ay`}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-normal text-xs break-words">
-                                                    <span className={`px-1.5 py-0.5 inline-flex text-[10px] sm:text-xs leading-4 font-semibold rounded-full ${color}`}>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${color}`}>
                                                         {text}
                                                     </span>
                                                 </td>
-                                                <td className={`px-2 py-2 whitespace-normal text-xs break-words ${resultColor}`}>
+                                                <td className={`px-4 py-3 whitespace-nowrap text-sm ${resultColor}`}>
                                                     {aiResult}
                                                 </td>
-                                                <td className="px-2 py-2 whitespace-normal text-right text-xs font-medium">
+                                                <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex items-center justify-end gap-2 flex-wrap">
-                                                        {/* Analiz Başlat butonu — sadece uygun durumlarda göster */}
-                                                        {showTrigger && (
+                                                        {/* Analiz Başlat butonu */}
+                                                        {showTrigger && report && (
                                                             <button
                                                                 onClick={() => handleTriggerAnalysis(report.id)}
                                                                 disabled={isAnalyzing}
@@ -269,27 +325,26 @@ const CoordinatorDashboard = ({ reports: initialReports, onReviewClick }) => {
                                                                 className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
                                                                 {isAnalyzing
-                                                                    ? <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-                                                                    : <SparklesIcon className="h-3.5 w-3.5" />
+                                                                    ? <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                                                                    : <SparklesIcon className="h-4 w-4" />
                                                                 }
-                                                                {isAnalyzing ? 'Başlatılıyor…' : 'Analiz Et'}
                                                             </button>
                                                         )}
                                                         {/* İncele butonu */}
                                                         <button
-                                                            onClick={() => onReviewClick(report.id)}
-                                                            disabled={isRaporGonderilmemis}
-                                                            className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            title={isRaporGonderilmemis ? "Kişiye ait yüklenmiş rapor bulunmadığı için incelenemez" : "Raporu İncele"}
+                                                            onClick={() => report && onReviewClick(report.id)}
+                                                            disabled={isRaporGonderilmemis || !report}
+                                                            className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title={isRaporGonderilmemis ? "Rapor yüklenmemiş" : "Raporu İncele"}
                                                         >
-                                                            <DocumentMagnifyingGlassIcon className="h-4 w-4" /> <span className="hidden sm:inline">İncele</span>
+                                                            <DocumentMagnifyingGlassIcon className="h-4 w-4" /> <span>İncele</span>
                                                         </button>
                                                         {/* Sil butonu */}
                                                         <button
-                                                            onClick={() => handleDeleteReport(report.id)}
-                                                            disabled={isDeleting || isRaporGonderilmemis}
-                                                            className="text-red-600 hover:text-red-900 flex items-center gap-1 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            title={isRaporGonderilmemis ? "Kişiye ait yüklenmiş rapor bulunmadığı için silinemez" : "Raporu Sil"}
+                                                            onClick={() => report && handleDeleteReport(report.id)}
+                                                            disabled={isDeleting || isRaporGonderilmemis || !report}
+                                                            className="text-red-600 hover:text-red-900 flex items-center gap-1 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            title={isRaporGonderilmemis ? "Silinecek rapor yok" : "Raporu Sil"}
                                                         >
                                                             {isDeleting ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <TrashIcon className="h-4 w-4" />}
                                                         </button>
