@@ -118,8 +118,8 @@ export default async function handler(req, res) {
       }
     `;
 
-        // Gemini 1.5 Flash — PDF'i hem metin hem görsel olarak analiz eder
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        // gemini-2.5-flash — PDF native, ücretsiz AI Studio kotasında mevcut
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         const result = await model.generateContent([prompt, pdfPart]);
         const response = await result.response;
         let responseText = response.text();
