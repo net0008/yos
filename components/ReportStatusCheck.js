@@ -142,14 +142,8 @@ const ReportStatusCheck = () => {
                             {reports.map((report) => {
                                 const statusInfo = getStatusStyle(report.status);
                                 
-                                // Yapay zeka veya koordinatör hata notları var mı?
-                                let aiErrorDesc = '';
-                                if (report.ai_analiz_sonucu && report.ai_analiz_sonucu.genel_durum === 'UYGUN DEĞİL') {
-                                    const failedItems = report.ai_analiz_sonucu.kontrol_listesi?.filter(i => i.durum === 'UYGUN DEĞİL') || [];
-                                    if (failedItems.length > 0) {
-                                        aiErrorDesc = failedItems.map(i => i.aciklama).join(' | ');
-                                    }
-                                }
+                                // Rapor bekleme aşamasında değilse değerlendirme notu gösterilecek
+                                const isPending = report.status === 'beklemede' || report.status === 'ai_incelendi' || report.status === 'ai_analiz_hatasi';
 
                                 return (
                                     <div key={report.id} className="bg-white border rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
@@ -164,12 +158,12 @@ const ReportStatusCheck = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Detay Bilgileri / Hata Notları */}
-                                            {(report.koordinator_notu || aiErrorDesc) && (
+                                            {/* Değerlendirme Notları (Sadece koordinatör mesajı) */}
+                                            {!isPending && (
                                                 <div className="mt-4 pt-4 border-t border-slate-100">
                                                     <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Değerlendirme Notları</h5>
                                                     
-                                                    {report.koordinator_notu && (
+                                                    {report.koordinator_notu ? (
                                                         <div className="mb-3 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-md shadow-sm">
                                                             <div className="flex items-start">
                                                                 <ExclamationCircleIcon className="h-5 w-5 text-red-500 mt-0.5 mr-2 flex-shrink-0" />
@@ -179,11 +173,9 @@ const ReportStatusCheck = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    )}
-                                                    
-                                                    {aiErrorDesc && (
-                                                        <div className="p-3 bg-orange-50 border border-orange-100 rounded-md">
-                                                            <p className="text-sm text-orange-900 font-medium"><span className="font-bold">Yapay Zeka Tespitleri:</span> {aiErrorDesc}</p>
+                                                    ) : (
+                                                        <div className="mb-3 p-4 bg-green-50 border-l-4 border-green-500 rounded-r-md shadow-sm">
+                                                            <p className="text-sm text-green-800 font-medium">Raporunuz incelenmiş olup uygun görülmüştür.</p>
                                                         </div>
                                                     )}
                                                 </div>
